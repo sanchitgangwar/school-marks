@@ -110,7 +110,7 @@ const App = () => {
         
         // 2. Call your new Node API
         const apiUrl = import.meta.env.PROD ? "" : "http://localhost:3000";
-        const response = await fetch(`${apiUrl}}/api/public/student/${token}`);
+        const response = await fetch(`${apiUrl}/api/public/student/${token}`);
         
         if (!response.ok) {
           throw new Error('Invalid Token or Student Not Found');
