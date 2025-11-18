@@ -1,56 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Printer, Globe, School, User, FileText, Phone, Mail, ChevronDown, ChevronUp } from 'lucide-react';
 import './App.css';
 import telanganaLogo from './assets/Telangana-LOGO.png';
-
-// --- MOCK DATA ---
-const MOCK_API_RESPONSE = {
-  student: {
-    id: "uuid-student-1",
-    name: "Ravi Kumar",
-    name_telugu: "రవి కుమార్",
-    pen_number: "2023456789",
-    class_name: "Grade 10 - A",
-    parent_phone: "9876543210",
-    dob: "2008-05-15",
-    school: {
-      name: "Zilla Parishad High School, Narayanpet",
-      name_telugu: "జిల్లా పరిషత్ ఉన్నత పాఠశాల, నారాయణపేట",
-      udise_code: "36145678901",
-      district: "Narayanpet",
-      address: "Main Road, Near Bus Stand",
-      address_telugu: "ప్రధాన రహదారి, బస్ స్టాండ్ దగ్గర"
-    }
-  },
-  results: [
-    {
-      exam_name: "Quarterly Examinations 2024",
-      exam_name_telugu: "త్రైమాసిక పరీక్షలు 2024",
-      exam_date: "2024-10-15",
-      subjects: [
-        { name: "Telugu", name_telugu: "తెలుగు", marks: 92, max: 100, grade: "A1" },
-        { name: "Hindi", name_telugu: "హిందీ", marks: 88, max: 100, grade: "A2" },
-        { name: "English", name_telugu: "ఆంగ్లం", marks: 85, max: 100, grade: "A2" },
-        { name: "Mathematics", name_telugu: "గణితం", marks: 95, max: 100, grade: "A1" },
-        { name: "Science", name_telugu: "సైన్స్", marks: 89, max: 100, grade: "A2" },
-        { name: "Social Studies", name_telugu: "సాంఘిక శాస్త్రం", marks: 91, max: 100, grade: "A1" }
-      ]
-    },
-    {
-      exam_name: "Unit Test 1 2024",
-      exam_name_telugu: "యూనిట్ టెస్ట్ 1 2024",
-      exam_date: "2024-08-20",
-      subjects: [
-        { name: "Telugu", name_telugu: "తెలుగు", marks: 22, max: 25, grade: "A1" },
-        { name: "Hindi", name_telugu: "హిందీ", marks: 20, max: 25, grade: "A2" },
-        { name: "English", name_telugu: "ఆంగ్లం", marks: 19, max: 25, grade: "B1" },
-        { name: "Mathematics", name_telugu: "గణితం", marks: 24, max: 25, grade: "A1" },
-        { name: "Science", name_telugu: "సైన్స్", marks: 21, max: 25, grade: "A2" },
-        { name: "Social Studies", name_telugu: "సాంఘిక శాస్త్రం", marks: 23, max: 25, grade: "A1" }
-      ]
-    }
-  ]
-};
 
 // --- HELPER COMPONENT: SINGLE EXAM SECTION ---
 const ExamSection = ({ result, isDefaultOpen, t }) => {
@@ -150,32 +101,6 @@ const App = () => {
   const [data, setData] = useState(null);
   const [language, setLanguage] = useState('en');
 
-  // Simulate fetching data
-  // useEffect(() => {
-  //   const fetchData = async () => {
-  //     try {
-  //       // --- REAL IMPLEMENTATION: ---
-  //       // const pathSegments = window.location.pathname.split('/');
-  //       // const token = pathSegments[pathSegments.length - 1]; 
-  //       // const response = await fetch(`http://localhost:3000/api/public/student/${token}`);
-  //       // if (!response.ok) throw new Error('Invalid Token');
-  //       // const result = await response.json();
-  //       // setData(result);
-  //       // ---------------------------------
-        
-  //       // SIMULATION:
-  //       await new Promise(resolve => setTimeout(resolve, 800)); 
-  //       setData(MOCK_API_RESPONSE);
-  //       setLoading(false);
-  //     } catch (err) {
-  //       setError("Unable to load results. Please check the link.");
-  //       setLoading(false);
-  //     }
-  //   };
-
-  //   fetchData();
-  // }, []);
-
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -195,13 +120,14 @@ const App = () => {
         setLoading(false);
       } catch (err) {
         setError("Unable to load results. Please check the link.");
+        console.log(err);
         setLoading(false);
       }
     };
 
     fetchData();
   }, []);
-  
+
   // Helper to get text based on language
   const t = (en, te) => {
     return (language === 'te' && te) ? te : en;
@@ -241,7 +167,7 @@ const App = () => {
         <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             {/*<School className="h-6 w-6" />*/}
-            <img src={telanganaLogo} class="h-16 w-auto" />
+            <img src={telanganaLogo} className="h-16 w-auto" />
             <span className="font-bold text-lg">District School Marks Portal</span>
           </div>
           <div className="flex items-center space-x-4">
