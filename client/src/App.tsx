@@ -62,7 +62,7 @@ const ExamSection = ({ result, isDefaultOpen, t }) => {
   const percentage = totalMax > 0 ? ((totalMarks / totalMax) * 100).toFixed(1) : "0.0";
 
   return (
-    <div className="mb-6 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm print:border-2 print:border-black print:shadow-none break-inside-avoid">
+    <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm print:border-2 print:border-black print:shadow-none break-inside-avoid">
       {/* Header / Clickable Toggle */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
@@ -150,29 +150,31 @@ const App = () => {
   const [data, setData] = useState(null);
   const [language, setLanguage] = useState('en');
 
-  // // Inject Tailwind CSS dynamically
-  // useEffect(() => {
-  //   const script = document.createElement('script');
-  //   script.src = "https://cdn.tailwindcss.com";
-  //   script.async = true;
-  //   document.head.appendChild(script);
-  // }, []);
-
   // Simulate fetching data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await new Promise(resolve => setTimeout(resolve, 800)); 
-        setData(MOCK_API_RESPONSE);
-        setLoading(false);
-      } catch (err) {
-        setError("Unable to load results. Please check the link.");
-        setLoading(false);
-      }
-    };
+  // useEffect(() => {
+  //   const fetchData = async () => {
+  //     try {
+  //       // --- REAL IMPLEMENTATION: ---
+  //       // const pathSegments = window.location.pathname.split('/');
+  //       // const token = pathSegments[pathSegments.length - 1]; 
+  //       // const response = await fetch(`http://localhost:3000/api/public/student/${token}`);
+  //       // if (!response.ok) throw new Error('Invalid Token');
+  //       // const result = await response.json();
+  //       // setData(result);
+  //       // ---------------------------------
+        
+  //       // SIMULATION:
+  //       await new Promise(resolve => setTimeout(resolve, 800)); 
+  //       setData(MOCK_API_RESPONSE);
+  //       setLoading(false);
+  //     } catch (err) {
+  //       setError("Unable to load results. Please check the link.");
+  //       setLoading(false);
+  //     }
+  //   };
 
-    fetchData();
-  }, []);
+  //   fetchData();
+  // }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -199,7 +201,7 @@ const App = () => {
 
     fetchData();
   }, []);
-
+  
   // Helper to get text based on language
   const t = (en, te) => {
     return (language === 'te' && te) ? te : en;
@@ -218,7 +220,7 @@ const App = () => {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center p-8 bg-white rounded-lg shadow-lg border-l-4 border-red-500">
+        <div className="text-center p-8 bg-white rounded-lg shadow-sm border-l-4 border-red-500">
           <h3 className="text-xl font-bold text-red-600 mb-2">Error</h3>
           <p className="text-gray-600">{error}</p>
         </div>
@@ -235,7 +237,7 @@ const App = () => {
     <div className="min-h-screen bg-gray-100 text-gray-900 font-sans print:bg-white">
       
       {/* --- NAVBAR --- */}
-      <nav className="bg-blue-700 text-white shadow-md print:hidden">
+      <nav className="bg-blue-700 text-white shadow-sm print:hidden"> {/* shadow-md -> shadow-sm */}
         <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             {/*<School className="h-6 w-6" />*/}
@@ -245,14 +247,14 @@ const App = () => {
           <div className="flex items-center space-x-4">
             <button 
               onClick={() => window.print()}
-              className="flex items-center space-x-1 bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded transition"
+              className="flex items-center space-x-1 bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-sm transition" 
             >
               <Printer className="h-4 w-4" />
               <span className="hidden sm:inline">Print</span>
             </button>
             <button 
               onClick={() => setLanguage(l => l === 'en' ? 'te' : 'en')}
-              className="flex items-center space-x-1 bg-white text-blue-700 px-3 py-1.5 rounded font-medium hover:bg-blue-50 transition"
+              className="flex items-center space-x-1 bg-white text-blue-700 px-3 py-1.5 rounded-sm font-medium hover:bg-blue-50 transition" 
             >
               <Globe className="h-4 w-4" />
               <span>{language === 'en' ? 'తెలుగు' : 'English'}</span>
@@ -264,8 +266,8 @@ const App = () => {
       {/* --- MAIN CONTENT --- */}
       <main className="max-w-4xl mx-auto p-4 sm:p-8 print:p-0">
         
-        {/* REPORT CARD CONTAINER */}
-        <div className="bg-white shadow-xl rounded-xl overflow-hidden border border-gray-200 print:shadow-none print:border-2 print:border-black print:rounded-none">
+        {/* REPORT CARD CONTAINER - shadow-xl -> shadow-lg, rounded-xl -> rounded-lg (No direct v4 equivalent, kept lg for consistency) */}
+        <div className="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200 print:shadow-none print:border-2 print:border-black print:rounded-none">
           
           {/* HEADER SECTION */}
           <div className="bg-blue-50 p-6 border-b border-blue-100 print:bg-white print:border-b-2 print:border-black">
@@ -278,7 +280,7 @@ const App = () => {
                   {t(student.school.address, student.school.address_telugu)}
                 </p>
                 <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                  <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded print:border print:border-gray-300">
+                  <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-sm print:border print:border-gray-300">
                     UDISE: {student.school.udise_code}
                   </span>
                   <span>District: {student.school.district}</span>
@@ -310,7 +312,7 @@ const App = () => {
 
               <div className="grid grid-cols-3 items-center">
                 <span className="text-gray-500 font-medium col-span-1">{t('PEN Number', 'PEN సంఖ్య')}:</span>
-                <span className="font-mono font-bold text-gray-900 col-span-2 bg-gray-50 p-1 rounded inline-block w-max print:bg-transparent print:p-0">
+                <span className="font-mono font-bold text-gray-900 col-span-2 bg-gray-50 p-1 rounded-sm inline-block w-max print:bg-transparent print:p-0">
                   {student.pen_number}
                 </span>
               </div>
