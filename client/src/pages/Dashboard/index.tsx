@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   School, User, FileText, LogOut, Users, Map, Layers, 
-  MapPin, Building, PenTool, UserPlus, QrCode
+  MapPin, Building, PenTool, UserPlus, QrCode, Sheet
 } from 'lucide-react';
 
 import ManageUsers from '../../components/ManageUsers';
@@ -108,7 +108,7 @@ const Dashboard = ({ user, onLogout }) => {
           {hasAccess(['admin', 'deo', 'meo', 'school_admin']) && (<button onClick={() => setActiveTab('add_marks')} className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-md ${activeTab === 'add_marks' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}><PenTool className="mr-3 h-5 w-5" /> Marks</button>)}
 
           <div className="pt-6 pb-2 px-4"><h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Bulk Upload</h3></div>
-          {hasAccess(['admin', 'deo', 'meo', 'school_admin']) && (<button onClick={() => setActiveTab('bulk_upload_marks')} className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-md ${activeTab === 'bulk_upload_marks' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}><PenTool className="mr-3 h-5 w-5" /> Marks</button>)}
+          {hasAccess(['admin', 'deo', 'meo', 'school_admin']) && (<button onClick={() => setActiveTab('bulk_upload_marks')} className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-md ${activeTab === 'bulk_upload_marks' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}><Sheet className="mr-3 h-5 w-5" /> Marks</button>)}
           
           <div className="pt-4 px-4 text-xs font-bold text-gray-400 uppercase">Tools</div>
           <button onClick={() => setActiveTab('generate_qr')} className="flex items-center w-full text-left px-4 py-2 text-sm text-purple-600 font-bold hover:bg-purple-50 rounded"><QrCode className="mr-3 h-5 w-5" /> QR Stickers</button>
