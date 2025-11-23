@@ -21,7 +21,7 @@ const QRCodePrintView = () => {
     const fetchData = async () => {
       const token = localStorage.getItem('authToken');
       try {
-        const res = await fetch(`http://localhost:3000/api/schools/${schoolId}/qr-data?class_id=${classId}`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/schools/${schoolId}/qr-data?class_id=${classId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) throw new Error("Failed to load student data");

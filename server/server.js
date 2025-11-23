@@ -524,42 +524,58 @@ app.get('/api/marks/fetch', authenticateToken, async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Fetch failed" }); }
 });
 
-// POST /api/marks/bulk-update
-app.post('/api/marks/bulk-update', authenticateToken, verifyJurisdiction, async (req, res) => {
+// UPDATED: BULK UPDATE MARKS + RECALCULATE STATISTICS
+app.post('/api/marks/bulk-update', authenticateToken, async (req, res) => {
   const { exam_id, subject_id, marks_data } = req.body; 
-  // marks_data is an array: [{ student_id: "...", marks: 85, max_marks: 100 }]
-
   const client = await pool.connect();
   
   try {
-    await client.query('BEGIN'); // Start Transaction
-
+    await client.query('BEGIN');
+    
+    // 1. Insert/Update Marks
     for (const entry of marks_data) {
       const query = `
-        INSERT INTO marks (student_id, exam_id, subject_id, marks_obtained, max_marks)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO marks (student_id, exam_id, subject_id, marks_obtained, max_marks, grade)
+        VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (student_id, exam_id, subject_id) 
         DO UPDATE SET 
-          marks_obtained = EXCLUDED.marks_obtained,
+          marks_obtained = EXCLUDED.marks_obtained, 
+          max_marks = EXCLUDED.max_marks,
+          grade = EXCLUDED.grade,
           updated_at = CURRENT_TIMESTAMP
       `;
-      
-      await client.query(query, [
-        entry.student_id, 
-        exam_id, 
-        subject_id, 
-        entry.marks, 
-        entry.max_marks || 100
-      ]);
+      await client.query(query, [entry.student_id, exam_id, subject_id, entry.marks, entry.max_marks || 100, entry.grade]);
     }
 
-    await client.query('COMMIT'); // Commit Transaction
-    res.json({ message: "Marks updated successfully" });
+    // 2. Recalculate Exam Statistics (Avg, Min, Max) for affected classes
+    // This aggregates data from the marks table for this specific Exam and Subject
+    const statsQuery = `
+      INSERT INTO exam_class_statistics (exam_id, subject_id, class_id, average_marks, highest_marks, lowest_marks)
+      SELECT 
+          m.exam_id, 
+          m.subject_id, 
+          s.class_id, 
+          ROUND(AVG(m.marks_obtained), 2), 
+          MAX(m.marks_obtained), 
+          MIN(m.marks_obtained)
+      FROM marks m
+      JOIN students s ON m.student_id = s.id
+      WHERE m.exam_id = $1 AND m.subject_id = $2
+      GROUP BY m.exam_id, m.subject_id, s.class_id
+      ON CONFLICT (exam_id, class_id, subject_id) 
+      DO UPDATE SET 
+          average_marks = EXCLUDED.average_marks,
+          highest_marks = EXCLUDED.highest_marks,
+          lowest_marks = EXCLUDED.lowest_marks
+    `;
+    await client.query(statsQuery, [exam_id, subject_id]);
 
+    await client.query('COMMIT');
+    res.json({ message: "Marks updated and statistics recalculated" });
   } catch (err) {
-    await client.query('ROLLBACK'); // Revert if any error occurs
+    await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({ error: "Failed to update marks" });
+    res.status(500).json({ error: "Update failed" });
   } finally {
     client.release();
   }

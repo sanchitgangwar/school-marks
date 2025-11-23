@@ -63,7 +63,7 @@ const BulkUploadMarks = ({ user }) => {
     const headers = [
       'SCHOOL_NAME', 'UDISE_CODE', 'TEST_NAME', 
       'PEN_NUMBER', 'STUDENT_NAME',             
-      'SUBJECT_NAME', 'MARKS_OBTAINED', 'MAX_MARKS'
+      'SUBJECT_NAME', 'MARKS_OBTAINED', 'MAX_MARKS', 'GRADE'
     ];
     
     let rows = [];
@@ -82,7 +82,7 @@ const BulkUploadMarks = ({ user }) => {
       ]);
     } else {
       rows = [
-        ['"ZPHS Narayanpet"', '"36145002301"', '"Quarterly Exam"', '"22034912"', '"Ravi Kumar"', `"${activeSubject.name || 'Mathematics'}"`, '85', '100']
+        ['""', '""', '""', '""', '""', `"${activeSubject.name || 'Mathematics'}"`, '', '']
       ];
     }
 
@@ -106,7 +106,7 @@ const BulkUploadMarks = ({ user }) => {
       return;
     }
     setUploadStatus('processing');
-    setLogs(["Reading file...", "Mapping Data..."]);
+    setLogs(["Reading file..."]);
 
     const reader = new FileReader();
     
@@ -123,11 +123,12 @@ const BulkUploadMarks = ({ user }) => {
       const errorLogs = [];
 
       dataRows.forEach((row, idx) => {
-        // Indices: 3:PEN, 5:Subject, 6:Marks, 7:Max
+        // Indices: 3:PEN, 5:Subject, 6:Marks, 7:Max, 8:Grade
         const pen = row[3];
         const subName = row[5];
         const marks = row[6];
         const max = row[7];
+        const grade = row[8] || ''; // Read Grade
         
         const student = lists.students.find(s => s.pen_number === pen);
         if (!student) {
@@ -135,14 +136,8 @@ const BulkUploadMarks = ({ user }) => {
           return;
         }
 
-        // Use the name from CSV to find ID, or fallback to context selected ID if matches
         let subjectId = lists.subjects.find(s => s.name.toLowerCase() === subName?.toLowerCase())?.id;
-        
-        // Fallback: If CSV subject is empty/invalid, but user selected a subject in UI, use that.
-        // This handles cases where user might delete the subject column by mistake but context is known.
-        if (!subjectId && context.subject_id) {
-             subjectId = context.subject_id; 
-        }
+        if (!subjectId && context.subject_id) subjectId = context.subject_id; 
 
         if (!subjectId) {
           errorLogs.push(`Row ${idx+2}: Subject '${subName}' unknown.`);
@@ -158,7 +153,8 @@ const BulkUploadMarks = ({ user }) => {
           student_id: student.id,
           subject_id: subjectId,
           marks: parseFloat(marks),
-          max_marks: parseFloat(max) || 100
+          max_marks: parseFloat(max) || 100,
+          grade: grade // Include grade
         });
       });
 
