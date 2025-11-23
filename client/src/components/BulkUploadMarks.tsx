@@ -21,20 +21,20 @@ const BulkUploadMarks = ({ user }) => {
 
   // --- DROPDOWN FETCHES ---
   useEffect(() => {
-    fetch('http://localhost:3000/api/entities/districts', { headers: { 'Authorization': `Bearer ${token}` } })
+    fetch(`${import.meta.env.VITE_API_URL}/api/entities/districts`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json()).then(data => setLists(p => ({ ...p, districts: Array.isArray(data) ? data : [] })));
   }, []);
 
   useEffect(() => {
     if (context.district_id) {
-      fetch(`http://localhost:3000/api/entities/mandals?district_id=${context.district_id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/mandals?district_id=${context.district_id}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(data => setLists(p => ({ ...p, mandals: Array.isArray(data) ? data : [] })));
     }
   }, [context.district_id]);
 
   useEffect(() => {
     if (context.mandal_id) {
-      fetch(`http://localhost:3000/api/entities/schools?mandal_id=${context.mandal_id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/schools?mandal_id=${context.mandal_id}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(data => setLists(p => ({ ...p, schools: Array.isArray(data) ? data : [] })));
     }
   }, [context.mandal_id]);
@@ -42,13 +42,13 @@ const BulkUploadMarks = ({ user }) => {
   useEffect(() => {
     if (context.school_id) {
       const h = { 'Authorization': `Bearer ${token}` };
-      fetch(`http://localhost:3000/api/entities/exams?school_id=${context.school_id}`, { headers: h })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/exams?school_id=${context.school_id}`, { headers: h })
         .then(res => res.json()).then(data => setLists(p => ({ ...p, exams: Array.isArray(data) ? data : [] })));
       
-      fetch(`http://localhost:3000/api/entities/subjects`, { headers: h })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/subjects`, { headers: h })
         .then(res => res.json()).then(data => setLists(p => ({ ...p, subjects: Array.isArray(data) ? data : [] })));
 
-      fetch(`http://localhost:3000/api/entities/students?school_id=${context.school_id}`, { headers: h })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/students?school_id=${context.school_id}`, { headers: h })
         .then(res => res.json()).then(data => setLists(p => ({ ...p, students: Array.isArray(data) ? data : [] })));
     }
   }, [context.school_id]);
@@ -178,7 +178,7 @@ const BulkUploadMarks = ({ user }) => {
       
       try {
         for (const [subId, marksData] of Object.entries(groupedBySubject)) {
-           const res = await fetch('http://localhost:3000/api/marks/bulk-update', {
+           const res = await fetch(`${import.meta.env.VITE_API_URL}/api/marks/bulk-update`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
              body: JSON.stringify({

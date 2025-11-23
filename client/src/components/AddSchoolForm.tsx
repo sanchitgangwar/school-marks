@@ -19,7 +19,7 @@ const AddSchoolForm = ({ user }) => {
 
   // 1. Fetch Districts (Always visible for name resolution)
   useEffect(() => {
-    fetch('http://localhost:3000/api/entities/districts', { headers: { 'Authorization': `Bearer ${token}` } })
+    fetch(`${import.meta.env.VITE_API_URL}/api/entities/districts`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json()).then(setDistricts);
   }, []);
 
@@ -27,7 +27,7 @@ const AddSchoolForm = ({ user }) => {
   useEffect(() => {
     const dId = user.role === 'admin' ? formData.district_id : user.district_id;
     if (dId) {
-      fetch(`http://localhost:3000/api/entities/mandals?district_id=${dId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/mandals?district_id=${dId}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(setMandals);
     }
   }, [formData.district_id, user.role, user.district_id]);
@@ -48,7 +48,7 @@ const AddSchoolForm = ({ user }) => {
 
     try {
       // Use the new specific endpoint that handles class creation
-      const res = await fetch('http://localhost:3000/api/schools/create', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/schools/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload)

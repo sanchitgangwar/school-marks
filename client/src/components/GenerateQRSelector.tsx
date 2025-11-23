@@ -23,7 +23,7 @@ const GenerateQRSelector = ({ user }) => {
 
   // 1. Fetch Districts
   useEffect(() => {
-    fetch('http://localhost:3000/api/entities/districts', { headers: { 'Authorization': `Bearer ${token}` } })
+    fetch(`${import.meta.env.VITE_API_URL}/api/entities/districts`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json()).then(d => setDistricts(Array.isArray(d) ? d : []));
   }, []);
 
@@ -31,7 +31,7 @@ const GenerateQRSelector = ({ user }) => {
   useEffect(() => {
     const dId = user.role === 'admin' ? context.district_id : user.district_id;
     if (dId) {
-      fetch(`http://localhost:3000/api/entities/mandals?district_id=${dId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/mandals?district_id=${dId}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(d => setMandals(Array.isArray(d) ? d : []));
     }
   }, [context.district_id, user.role, user.district_id]);
@@ -40,7 +40,7 @@ const GenerateQRSelector = ({ user }) => {
   useEffect(() => {
     const mId = ['admin', 'deo'].includes(user.role) ? context.mandal_id : user.mandal_id;
     if (mId) {
-      fetch(`http://localhost:3000/api/entities/schools?mandal_id=${mId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/schools?mandal_id=${mId}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(d => setSchools(Array.isArray(d) ? d : []));
     }
   }, [context.mandal_id, user.role, user.mandal_id]);
@@ -49,7 +49,7 @@ const GenerateQRSelector = ({ user }) => {
   useEffect(() => {
     const sId = ['admin', 'deo', 'meo'].includes(user.role) ? context.school_id : user.school_id;
     if (sId) {
-      fetch(`http://localhost:3000/api/entities/classes?school_id=${sId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/classes?school_id=${sId}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(d => setClasses(Array.isArray(d) ? d : []));
     } else {
       setClasses([]);

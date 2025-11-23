@@ -28,7 +28,7 @@ const AddTestForm = ({ user }) => {
 
   // 1. Always fetch districts (to display name even if locked)
   useEffect(() => {
-    fetch('http://localhost:3000/api/entities/districts', { headers: { 'Authorization': `Bearer ${token}` } })
+    fetch(`${import.meta.env.VITE_API_URL}/api/entities/districts`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json()).then(setDistricts);
   }, []);
 
@@ -36,10 +36,10 @@ const AddTestForm = ({ user }) => {
   useEffect(() => {
     const dId = user.role === 'admin' ? formData.district_id : user.district_id;
     if (dId) {
-      fetch(`http://localhost:3000/api/entities/mandals?district_id=${dId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/mandals?district_id=${dId}`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json()).then(data => setMandals(Array.isArray(data) ? data : []));
       
-      fetch(`http://localhost:3000/api/entities/schools?district_id=${dId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/schools?district_id=${dId}`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json()).then(data => setSchools(Array.isArray(data) ? data : []));
     }
   }, [formData.district_id, user.role]);
@@ -85,7 +85,7 @@ const AddTestForm = ({ user }) => {
           end_date: formData.end_date, 
           school_id: schoolId 
         };
-        const res = await fetch('http://localhost:3000/api/entities/exams/add', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/entities/exams/add`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
         if (res.ok) successCount++;
       }
       setMsg(`Successfully created exams for ${successCount} schools!`);

@@ -9,7 +9,7 @@ const AddDistrictForm = ({ user }) => {
     e.preventDefault();
     const token = localStorage.getItem('authToken');
     try {
-      const res = await fetch('http://localhost:3000/api/entities/districts/add', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/entities/districts/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ name, state: 'Telangana' })

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  Printer, Globe, School, Users, FileText, Phone, Mail, 
-  ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus 
+  Users
 } from 'lucide-react';
 
 // --- 1. MANAGE USERS COMPONENT (Updated with Dropdowns) ---

@@ -13,7 +13,7 @@ const LoginPage = ({ onLogin }) => {
     setError('');
 
     try {
-      const apiUrl = "http://localhost:3000"; // In prod, make this dynamic
+      const apiUrl = import.meta.env.VITE_API_URL;
       const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

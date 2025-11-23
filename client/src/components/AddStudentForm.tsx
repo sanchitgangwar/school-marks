@@ -20,7 +20,7 @@ const AddStudentForm = ({ user }) => {
 
   // 1. Fetch Districts (Always fetch to show labels)
   useEffect(() => {
-    fetch('http://localhost:3000/api/entities/districts', { headers: { 'Authorization': `Bearer ${token}` } })
+    fetch(`${import.meta.env.VITE_API_URL}/api/entities/districts`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json()).then(setDistricts);
   }, []);
 
@@ -28,7 +28,7 @@ const AddStudentForm = ({ user }) => {
   useEffect(() => {
     const dId = user.role === 'admin' ? formData.district_id : user.district_id;
     if (dId) {
-      fetch(`http://localhost:3000/api/entities/mandals?district_id=${dId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/mandals?district_id=${dId}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(setMandals);
     }
   }, [formData.district_id, user.role, user.district_id]);
@@ -37,7 +37,7 @@ const AddStudentForm = ({ user }) => {
   useEffect(() => {
     const mId = ['admin', 'deo'].includes(user.role) ? formData.mandal_id : user.mandal_id;
     if (mId) {
-      fetch(`http://localhost:3000/api/entities/schools?mandal_id=${mId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/schools?mandal_id=${mId}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(setSchools);
     }
   }, [formData.mandal_id, user.role, user.mandal_id]);
@@ -47,7 +47,7 @@ const AddStudentForm = ({ user }) => {
     const sId = ['admin', 'deo', 'meo'].includes(user.role) ? formData.school_id : user.school_id;
     if (sId) {
       // Assuming a generic endpoint exists or specific one for classes
-      fetch(`http://localhost:3000/api/entities/classes?school_id=${sId}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/classes?school_id=${sId}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(data => setClasses(Array.isArray(data) ? data : []));
     } else {
       setClasses([]);
@@ -57,7 +57,7 @@ const AddStudentForm = ({ user }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:3000/api/entities/students/add', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/entities/students/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(formData)

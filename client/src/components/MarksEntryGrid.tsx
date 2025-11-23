@@ -20,20 +20,20 @@ const MarksEntryGrid = ({ user }) => {
 
   // --- CASCADING DROPDOWN FETCHES ---
   useEffect(() => {
-    fetch('http://localhost:3000/api/entities/districts', { headers: { 'Authorization': `Bearer ${token}` } })
+    fetch(`${import.meta.env.VITE_API_URL}/api/entities/districts`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json()).then(data => setLists(p => ({ ...p, districts: Array.isArray(data) ? data : [] })));
   }, []);
 
   useEffect(() => {
     if (context.district_id) {
-      fetch(`http://localhost:3000/api/entities/mandals?district_id=${context.district_id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/mandals?district_id=${context.district_id}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(data => setLists(p => ({ ...p, mandals: Array.isArray(data) ? data : [] })));
     }
   }, [context.district_id]);
 
   useEffect(() => {
     if (context.mandal_id) {
-      fetch(`http://localhost:3000/api/entities/schools?mandal_id=${context.mandal_id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/schools?mandal_id=${context.mandal_id}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json()).then(data => setLists(p => ({ ...p, schools: Array.isArray(data) ? data : [] })));
     }
   }, [context.mandal_id]);
@@ -41,9 +41,9 @@ const MarksEntryGrid = ({ user }) => {
   useEffect(() => {
     if (context.school_id) {
       const h = { 'Authorization': `Bearer ${token}` };
-      fetch(`http://localhost:3000/api/entities/classes?school_id=${context.school_id}`, { headers: h }).then(res => res.json()).then(data => setLists(p => ({ ...p, classes: Array.isArray(data) ? data : [] })));
-      fetch(`http://localhost:3000/api/entities/exams?school_id=${context.school_id}`, { headers: h }).then(res => res.json()).then(data => setLists(p => ({ ...p, exams: Array.isArray(data) ? data : [] })));
-      fetch(`http://localhost:3000/api/entities/subjects`, { headers: h }).then(res => res.json()).then(data => setLists(p => ({ ...p, subjects: Array.isArray(data) ? data : [] })));
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/classes?school_id=${context.school_id}`, { headers: h }).then(res => res.json()).then(data => setLists(p => ({ ...p, classes: Array.isArray(data) ? data : [] })));
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/exams?school_id=${context.school_id}`, { headers: h }).then(res => res.json()).then(data => setLists(p => ({ ...p, exams: Array.isArray(data) ? data : [] })));
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/subjects`, { headers: h }).then(res => res.json()).then(data => setLists(p => ({ ...p, subjects: Array.isArray(data) ? data : [] })));
     }
   }, [context.school_id]);
 
@@ -54,11 +54,11 @@ const MarksEntryGrid = ({ user }) => {
 
     try {
       // 1. Fetch Students
-      const studRes = await fetch(`http://localhost:3000/api/entities/students?class_id=${context.class_id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const studRes = await fetch(`${import.meta.env.VITE_API_URL}/api/entities/students?class_id=${context.class_id}`, { headers: { 'Authorization': `Bearer ${token}` } });
       const students = await studRes.json();
 
       // 2. Fetch Existing Marks
-      const marksRes = await fetch(`http://localhost:3000/api/marks/fetch?exam_id=${context.exam_id}&subject_id=${context.subject_id}&class_id=${context.class_id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const marksRes = await fetch(`${import.meta.env.VITE_API_URL}/api/marks/fetch?exam_id=${context.exam_id}&subject_id=${context.subject_id}&class_id=${context.class_id}`, { headers: { 'Authorization': `Bearer ${token}` } });
       const existingMarks = await marksRes.json();
 
       // 3. Merge
@@ -83,7 +83,7 @@ const MarksEntryGrid = ({ user }) => {
             exam_id: context.exam_id, subject_id: context.subject_id,
             marks_data: studentsGrid.filter(row => row.marks_obtained !== '').map(row => ({ student_id: row.student_id, marks: row.marks_obtained, max_marks: row.max_marks }))
         };
-        const res = await fetch('http://localhost:3000/api/marks/bulk-update', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/marks/bulk-update`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
         if (res.ok) setMsg("Marks Saved Successfully!"); else setMsg("Failed to save.");
     } catch (e) { setMsg("Network Error"); } finally { setLoading(false); }
   };
