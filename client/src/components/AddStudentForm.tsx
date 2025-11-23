@@ -120,7 +120,7 @@ const AddStudentForm = ({ user }) => {
              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Class</label>
              <select className="w-full p-2 border rounded text-sm bg-white" value={formData.class_id} onChange={e => setFormData({...formData, class_id: e.target.value})} required disabled={!formData.school_id}>
                <option value="">Select Class</option>
-               {classes.map(c => <option key={c.id} value={c.id}>{c.grade_level} - {c.section_name}</option>)}
+               {classes.map(c => <option key={c.id} value={c.id}>{c.grade_level}</option>)}
              </select>
            </div>
         </div>

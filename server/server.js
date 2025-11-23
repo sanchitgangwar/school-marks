@@ -245,7 +245,7 @@ app.get('/api/entities/:type', authenticateToken, async (req, res) => {
   const { role, district_id, mandal_id, school_id } = req.user;
   
   // Extract query params for dropdown filtering
-  const { district_id: q_district_id, mandal_id: q_mandal_id } = req.query;
+  const { district_id: q_district_id, mandal_id: q_mandal_id, school_id: q_school_id } = req.query;
   
   let query = `SELECT * FROM ${type} WHERE 1=1`;
   let params = [];
@@ -292,6 +292,13 @@ app.get('/api/entities/:type', authenticateToken, async (req, res) => {
     if (['schools'].includes(type)) {
        query += ` AND mandal_id = $${idx++}`;
        params.push(q_mandal_id);
+    }
+  }
+
+  if (q_school_id) {
+    if (['classes'].includes(type)) {
+      query += `AND school_id = $${idx++}`;
+      params.push(q_school_id);
     }
   }
 

@@ -131,7 +131,7 @@ const AddSchoolForm = ({ user }) => {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Address in Telugu</label>
-            <input className="w-full p-2 border rounded" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+            <input className="w-full p-2 border rounded" value={formData.address_telugu} onChange={e => setFormData({...formData, address_telugu: e.target.value})} />
           </div>
         </div>
 
