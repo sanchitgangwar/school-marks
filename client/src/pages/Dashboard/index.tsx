@@ -15,6 +15,7 @@ import BulkUploadMarks from '../../components/BulkUploadMarks';
 import GenerateQRSelector from '../../components/GenerateQRSelector';
 
 import telanganaLogo from '../../assets/Telangana-LOGO.png';
+import cpLogo from '../../assets/CPLogo.png';
 
 
 // ==========================================
@@ -80,9 +81,23 @@ const Dashboard = ({ user, onLogout }) => {
   return (
     <div className="min-h-screen bg-gray-50 font-sans flex">
       <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col overflow-y-auto h-screen sticky top-0">
-        <div className="mb-6 flex items-center gap-3 p-2 border-b border-gray-100 pb-4">
-           <img src={telanganaLogo} alt="Logo" className="h-10 w-auto" />
+{/*        <div className="mb-6 p-2 border-b border-gray-100 pb-4">
+           <div className="flex items-center gap-2 mb-2">
+             <img src={logoUrl} alt="Telangana Logo" className="h-12 w-auto" />
+             <img src={secondLogoUrl} alt="Second Logo" className="h-10 w-auto" />
+           </div>
            <div>
+             <h1 className="font-bold text-xl text-blue-800 leading-tight">Portal</h1>
+             <span className="text-xs text-gray-500 block">{user.role}</span>
+           </div>
+        </div>*/}
+
+        <div className="mb-6 p-2 border-b border-gray-100 pb-4">
+           <div className="flex items-center justify-center gap-2 mb-2 border-b border-gray-100 py-4">
+             <img src={telanganaLogo} alt="Telangana Logo" className="h-25 w-auto" />
+             <img src={cpLogo} alt="Second Logo" className="h-25 w-auto" />
+           </div>
+           <div className="px-4 py-2">
              <h1 className="font-bold text-xl text-blue-800 leading-tight">Marks Portal</h1>
              <span className="text-xs text-gray-500 block">{roleLabels[user.role]}</span>
            </div>

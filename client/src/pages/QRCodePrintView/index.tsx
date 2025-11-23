@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 
 import { Loader, Printer } from 'lucide-react';
 import telanganaLogo from '../../assets/Telangana-LOGO.png';
+import cpLogo from '../../assets/CPLogo.png';
 
 // ==========================================
 // 1. QR CODE PRINT PAGE (Updated)
@@ -80,7 +81,11 @@ const QRCodePrintView = () => {
               >
                 {/* Header: Logo + School Name */}
                 <div className="w-full flex items-center justify-between border-b-2 border-gray-200 pb-2 mb-2">
-                  <img src={telanganaLogo} className="h-10 w-auto object-contain flex-shrink-0" alt="Logo" />
+                  <div className="flex items-center">
+                    <img src={telanganaLogo} className="h-10 w-auto object-contain flex-shrink-0" alt="Logo" />
+                    <img src={cpLogo} className="h-10 w-auto object-contain flex-shrink-0" alt="Logo" />
+                  </div>
+                  
                   <div className="flex-grow text-right pl-2 overflow-hidden">
                     <h3 className="text-[10px] font-bold text-gray-600 uppercase tracking-wider leading-tight">
                       {student.school_name}
