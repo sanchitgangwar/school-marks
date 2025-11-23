@@ -102,7 +102,7 @@ const QRCodePrintView = () => {
                   </h2>
                   
                   <div className="flex flex-wrap justify-center gap-x-3 gap-y-0 text-xs text-gray-700 font-medium">
-                    <span>Class: {student.grade_level || 'N/A'}-{student.section_name || 'A'}</span>
+                    <span>Class: {student.grade_level || 'N/A'}}</span>
                     <span className="font-mono text-gray-500">|</span>
                     <span className="font-mono">PEN: {student.pen_number}</span>
                   </div>

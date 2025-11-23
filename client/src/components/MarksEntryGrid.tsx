@@ -110,7 +110,7 @@ const MarksEntryGrid = ({ user }) => {
            </select></div>
          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Class</label>
            <select className="w-full p-2 border rounded text-sm" value={context.class_id} onChange={e => setContext({...context, class_id: e.target.value})} disabled={!context.school_id}>
-             <option value="">Select Class</option>{lists.classes.map(c => <option key={c.id} value={c.id}>{c.grade_level} - {c.section_name}</option>)}
+             <option value="">Select Class</option>{lists.classes.map(c => <option key={c.id} value={c.id}>{c.grade_level}</option>)}
            </select></div>
          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Exam</label>
            <select className="w-full p-2 border rounded text-sm" value={context.exam_id} onChange={e => setContext({...context, exam_id: e.target.value})} disabled={!context.school_id}>

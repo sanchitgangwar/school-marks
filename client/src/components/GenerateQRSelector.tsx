@@ -133,7 +133,7 @@ const GenerateQRSelector = ({ user }) => {
             <option value="all">All Classes</option>
             {classes.map(c => (
               <option key={c.id} value={c.id}>
-                Grade {c.grade_level} - Section {c.section_name}
+                Grade {c.grade_level}
               </option>
             ))}
           </select>

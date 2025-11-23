@@ -196,11 +196,11 @@ app.post('/api/schools/create', authenticateToken, verifyJurisdiction, async (re
     const schoolRes = await client.query(schoolQuery, [name, udise_code, address, district_id, mandal_id]);
     const schoolId = schoolRes.rows[0].id;
 
-    // 2. Insert Classes (Default Section 'A')
+    // 2. Insert Classes
     if (grades && Array.isArray(grades) && grades.length > 0) {
       for (const grade of grades) {
         await client.query(
-          `INSERT INTO classes (school_id, grade_level, section_name) VALUES ($1, $2, 'A')`,
+          `INSERT INTO classes (school_id, grade_level) VALUES ($1, $2)`,
           [schoolId, parseInt(grade)]
         );
       }
@@ -327,7 +327,6 @@ app.get('/api/public/student/:token', async (req, res) => {
         s.date_of_birth,
         
         c.grade_level,
-        c.section_name,
         
         sch.name as school_name,
         sch.name_telugu as school_name_telugu,
@@ -354,7 +353,7 @@ app.get('/api/public/student/:token', async (req, res) => {
     const studentId = studentRow.student_id;
 
     const className = studentRow.grade_level 
-      ? `Grade ${studentRow.grade_level} - ${studentRow.section_name}` 
+      ? `Grade ${studentRow.grade_level}` 
       : 'Class Not Assigned';
 
     // 2. FETCH ALL MARKS (Modified to include Averages)
@@ -600,7 +599,6 @@ app.get('/api/schools/:schoolId/qr-data', authenticateToken, async (req, res) =>
         s.parent_access_token,
         s.pen_number,
         c.grade_level,
-        c.section_name,
         sch.name as school_name
       FROM students s
       JOIN schools sch ON s.school_id = sch.id
@@ -616,7 +614,7 @@ app.get('/api/schools/:schoolId/qr-data', authenticateToken, async (req, res) =>
       params.push(class_id);
     }
 
-    query += ` ORDER BY c.grade_level ASC, c.section_name ASC, s.name ASC`;
+    query += ` ORDER BY c.grade_level ASC, s.name ASC`;
     
     const result = await pool.query(query, params);
     res.json(result.rows);
