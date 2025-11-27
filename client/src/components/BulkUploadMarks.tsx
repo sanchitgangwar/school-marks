@@ -10,10 +10,10 @@ const BulkUploadMarks = ({ user }) => {
     mandal_id: user.mandal_id || '',
     school_id: user.school_id || '',
     exam_id: '',
-    subject_id: '' // Added Subject ID
+    subject_id: '' 
   });
 
-  const [lists, setLists] = useState({ districts: [], mandals: [], schools: [], exams: [], subjects: [], students: [] });
+  const [lists, setLists] = useState({ districts: [], mandals: [], schools: [], exams: [], subjects: [], students: [], classes: [] });
   const [file, setFile] = useState(null);
   const [uploadStatus, setUploadStatus] = useState(''); 
   const [logs, setLogs] = useState([]);
@@ -48,6 +48,10 @@ const BulkUploadMarks = ({ user }) => {
       fetch(`${import.meta.env.VITE_API_URL}/api/entities/subjects`, { headers: h })
         .then(res => res.json()).then(data => setLists(p => ({ ...p, subjects: Array.isArray(data) ? data : [] })));
 
+      // Fetch Classes (Global) to map IDs to Names
+      fetch(`${import.meta.env.VITE_API_URL}/api/entities/classes`, { headers: h })
+        .then(res => res.json()).then(data => setLists(p => ({ ...p, classes: Array.isArray(data) ? data : [] })));
+
       fetch(`${import.meta.env.VITE_API_URL}/api/entities/students?school_id=${context.school_id}`, { headers: h })
         .then(res => res.json()).then(data => setLists(p => ({ ...p, students: Array.isArray(data) ? data : [] })));
     }
@@ -60,29 +64,36 @@ const BulkUploadMarks = ({ user }) => {
     const activeExam = lists.exams.find(e => e.id === context.exam_id) || { name: 'TEST_NAME' };
     const activeSubject = lists.subjects.find(s => s.id === context.subject_id) || { name: '' };
 
+    // Added CLASS Column
     const headers = [
       'SCHOOL_NAME', 'UDISE_CODE', 'TEST_NAME', 
-      'PEN_NUMBER', 'STUDENT_NAME',             
+      'PEN_NUMBER', 'STUDENT_NAME', 'CLASS',            
       'SUBJECT_NAME', 'MARKS_OBTAINED', 'MAX_MARKS', 'GRADE'
     ];
     
     let rows = [];
 
     if (lists.students.length > 0) {
-      // Pre-fill rows with students AND the selected subject
-      rows = lists.students.map(s => [
-        `"${activeSchool.name}"`, 
-        `"${activeSchool.udise_code}"`,
-        `"${activeExam.name}"`,
-        `"${s.pen_number}"`,
-        `"${s.name}"`,
-        `"${activeSubject.name}"`, // Pre-filled Subject Name
-        '', // Marks (Blank for entry)
-        '100'
-      ]);
+      rows = lists.students.map(s => {
+        const cls = lists.classes.find(c => c.id === s.class_id);
+        const className = cls ? `Grade ${cls.grade_level}` : '';
+        
+        return [
+          `"${activeSchool.name}"`, 
+          `"${activeSchool.udise_code}"`,
+          `"${activeExam.name}"`,
+          `"${s.pen_number}"`,
+          `"${s.name}"`,
+          `"${className}"`, // Pre-filled Class
+          `"${activeSubject.name}"`, 
+          '', // Marks
+          '100',
+          '' // Grade
+        ];
+      });
     } else {
       rows = [
-        ['""', '""', '""', '""', '""', `"${activeSubject.name || 'Mathematics'}"`, '', '']
+        ['"ZPHS"', '"361450"', '"Q1"', '"220349"', '"Ravi"', '"Grade 10"', `"${activeSubject.name || 'Math'}"`, '85', '100', 'A2']
       ];
     }
 
@@ -93,7 +104,7 @@ const BulkUploadMarks = ({ user }) => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Marks_${activeSubject.name || 'Subject'}_${activeSchool.udise_code}.csv`);
+    link.setAttribute("download", `Marks_${activeSubject.name || 'Subject'}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -112,7 +123,7 @@ const BulkUploadMarks = ({ user }) => {
     
     reader.onload = async (e) => {
       const text = e.target.result;
-      const rows = String(text).split("\n").map(row => {
+      const rows = text.split("\n").map(row => {
         const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
         return matches ? matches.map(m => m.replace(/^"|"$/g, '').trim()) : [];
       });
@@ -123,12 +134,13 @@ const BulkUploadMarks = ({ user }) => {
       const errorLogs = [];
 
       dataRows.forEach((row, idx) => {
-        // Indices: 3:PEN, 5:Subject, 6:Marks, 7:Max, 8:Grade
+        // Indices Shifted by 1 due to CLASS column
+        // 0:School, 1:UDISE, 2:Test, 3:PEN, 4:Name, 5:Class, 6:Subject, 7:Marks, 8:Max, 9:Grade
         const pen = row[3];
-        const subName = row[5];
-        const marks = row[6];
-        const max = row[7];
-        const grade = row[8] || ''; // Read Grade
+        const subName = row[6]; // Shifted from 5
+        const marks = row[7];   // Shifted from 6
+        const max = row[8];     // Shifted from 7
+        const grade = row[9] || ''; 
         
         const student = lists.students.find(s => s.pen_number === pen);
         if (!student) {
@@ -154,7 +166,7 @@ const BulkUploadMarks = ({ user }) => {
           subject_id: subjectId,
           marks: parseFloat(marks),
           max_marks: parseFloat(max) || 100,
-          grade: grade // Include grade
+          grade: grade
         });
       });
 
@@ -211,20 +223,15 @@ const BulkUploadMarks = ({ user }) => {
         <div className="space-y-4">
           <h3 className="font-bold text-gray-700 border-b pb-2">1. Select Context</h3>
           
-          <div><label className="text-xs font-bold text-gray-500 uppercase">District</label>
-          <select className={`w-full p-2 border rounded ${isDistrictLocked?'bg-gray-100':''}`} value={context.district_id} onChange={e=>setContext({...context, district_id:e.target.value})} disabled={isDistrictLocked}><option value="">Select District</option>{lists.districts.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+          <div><label className="text-xs font-bold text-gray-500 uppercase">District</label><select className={`w-full p-2 border rounded ${isDistrictLocked?'bg-gray-100':''}`} value={context.district_id} onChange={e=>setContext({...context, district_id:e.target.value})} disabled={isDistrictLocked}><option value="">Select District</option>{lists.districts.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
 
-          <div><label className="text-xs font-bold text-gray-500 uppercase">Mandal</label>
-          <select className={`w-full p-2 border rounded ${isMandalLocked?'bg-gray-100':''}`} value={context.mandal_id} onChange={e=>setContext({...context, mandal_id:e.target.value})} disabled={isMandalLocked}><option value="">Select Mandal</option>{lists.mandals.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
+          <div><label className="text-xs font-bold text-gray-500 uppercase">Mandal</label><select className={`w-full p-2 border rounded ${isMandalLocked?'bg-gray-100':''}`} value={context.mandal_id} onChange={e=>setContext({...context, mandal_id:e.target.value})} disabled={isMandalLocked}><option value="">Select Mandal</option>{lists.mandals.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
 
-          <div><label className="text-xs font-bold text-gray-500 uppercase">School</label>
-          <select className={`w-full p-2 border rounded ${isSchoolLocked?'bg-gray-100':''}`} value={context.school_id} onChange={e=>setContext({...context, school_id:e.target.value})} disabled={isSchoolLocked}><option value="">Select School</option>{lists.schools.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+          <div><label className="text-xs font-bold text-gray-500 uppercase">School</label><select className={`w-full p-2 border rounded ${isSchoolLocked?'bg-gray-100':''}`} value={context.school_id} onChange={e=>setContext({...context, school_id:e.target.value})} disabled={isSchoolLocked}><option value="">Select School</option>{lists.schools.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
 
-          <div><label className="text-xs font-bold text-gray-500 uppercase">Test / Exam</label>
-          <select className="w-full p-2 border rounded" value={context.exam_id} onChange={e=>setContext({...context, exam_id:e.target.value})} disabled={!context.school_id}><option value="">Select Exam</option>{lists.exams.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
+          <div><label className="text-xs font-bold text-gray-500 uppercase">Test / Exam</label><select className="w-full p-2 border rounded" value={context.exam_id} onChange={e=>setContext({...context, exam_id:e.target.value})} disabled={!context.school_id}><option value="">Select Exam</option>{lists.exams.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
 
-          <div><label className="text-xs font-bold text-gray-500 uppercase">Subject</label>
-          <select className="w-full p-2 border rounded" value={context.subject_id} onChange={e=>setContext({...context, subject_id:e.target.value})} disabled={!context.school_id}><option value="">Select Subject</option>{lists.subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+          <div><label className="text-xs font-bold text-gray-500 uppercase">Subject</label><select className="w-full p-2 border rounded" value={context.subject_id} onChange={e=>setContext({...context, subject_id:e.target.value})} disabled={!context.school_id}><option value="">Select Subject</option>{lists.subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
         </div>
 
         {/* RIGHT: File Actions */}
@@ -236,7 +243,7 @@ const BulkUploadMarks = ({ user }) => {
              <ul className="list-disc list-inside text-xs text-blue-700 space-y-1">
                <li>Select <strong>Subject</strong> to pre-fill the template.</li>
                <li>Download the <strong>Smart Template</strong>.</li>
-               <li>Fill in <strong>Marks</strong> for each student.</li>
+               <li>Fill in <strong>Marks</strong> and optionally <strong>Grade</strong>.</li>
                <li>Do not change PEN numbers.</li>
              </ul>
              <button onClick={downloadTemplate} disabled={!context.subject_id} className="mt-3 flex items-center gap-2 bg-white border border-blue-300 text-blue-700 px-3 py-1.5 rounded text-sm hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -270,5 +277,4 @@ const BulkUploadMarks = ({ user }) => {
     </div>
   );
 };
-
 export default BulkUploadMarks;
