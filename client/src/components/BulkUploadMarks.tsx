@@ -123,7 +123,7 @@ const BulkUploadMarks = ({ user }) => {
     
     reader.onload = async (e) => {
       const text = e.target.result;
-      const rows = text.split("\n").map(row => {
+      const rows = String(text).split("\n").map(row => {
         const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
         return matches ? matches.map(m => m.replace(/^"|"$/g, '').trim()) : [];
       });
