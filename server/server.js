@@ -277,7 +277,7 @@ app.get('/api/entities/:type', authenticateToken, async (req, res) => {
 app.get('/api/public/student/:token', async (req, res) => {
   const { token } = req.params;
 
-  // Basic UUID validation regex
+  // Basic UUID format check
   const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
   if (!uuidRegex.test(token)) {
     return res.status(400).json({ error: 'Invalid access link format.' });
@@ -287,6 +287,7 @@ app.get('/api/public/student/:token', async (req, res) => {
 
   try {
     // 1. FETCH STUDENT & SCHOOL DETAILS
+    // Updated to include Mandals and handle Global Classes (no section)
     const studentQuery = `
       SELECT 
         s.id as student_id,
@@ -304,11 +305,15 @@ app.get('/api/public/student/:token', async (req, res) => {
         sch.address as school_address,
         sch.address_telugu as school_address_telugu,
         
+        mandal.name as mandal_name,
+        mandal.name_telugu as mandal_name_telugu,
+
         d.name as district_name,
-        d.name_telugu as district_name_telugu
+        d.name_telugu as district_name_telugu -- Assuming district has telugu name column now, or ignore if not
       FROM students s
       LEFT JOIN classes c ON s.class_id = c.id
       JOIN schools sch ON s.school_id = sch.id
+      LEFT JOIN mandals mandal ON sch.mandal_id = mandal.id
       JOIN districts d ON sch.district_id = d.id
       WHERE s.parent_access_token = $1
     `;
@@ -322,17 +327,16 @@ app.get('/api/public/student/:token', async (req, res) => {
     const studentRow = studentRes.rows[0];
     const studentId = studentRow.student_id;
 
-    const className = studentRow.grade_level 
-      ? `Grade ${studentRow.grade_level}` 
-      : 'Class Not Assigned';
+    // Format Class Name (Just Grade now)
+    const className = studentRow.grade_level ? `Grade ${studentRow.grade_level}` : 'Class Not Assigned';
 
-    // 2. FETCH ALL MARKS (Modified to include Averages)
-    // --- CHANGED: Added joins to 'students' (for class_id) and 'exam_class_statistics' ---
+    // 2. FETCH ALL MARKS (Grouped by Exam)
+    // Updated to join Statistics using SCHOOL_ID + CLASS_ID + EXAM_ID
     const marksQuery = `
       SELECT 
         e.id as exam_id,
         e.name as exam_name,
-        e.name_telugu as exam_name_telugu,
+        e.exam_code,
         e.start_date,
         
         sub.name as subject_name,
@@ -342,7 +346,7 @@ app.get('/api/public/student/:token', async (req, res) => {
         m.max_marks,
         m.grade,
 
-        -- New Statistics Columns
+        -- Statistics (Scoped to this student's school and class)
         stats.average_marks as class_average,
         stats.highest_marks as class_highest,
         stats.lowest_marks as class_lowest
@@ -350,13 +354,14 @@ app.get('/api/public/student/:token', async (req, res) => {
       FROM marks m
       JOIN exams e ON m.exam_id = e.id
       JOIN subjects sub ON m.subject_id = sub.id
-      JOIN students s ON m.student_id = s.id -- Joined to get s.class_id
+      JOIN students s ON m.student_id = s.id
       
-      -- Join the stats table on Exam + Subject + Class
+      -- Join stats: Match Exam, Subject, Global Class, AND Specific School
       LEFT JOIN exam_class_statistics stats 
         ON m.exam_id = stats.exam_id 
         AND m.subject_id = stats.subject_id
         AND s.class_id = stats.class_id
+        AND s.school_id = stats.school_id 
         
       WHERE m.student_id = $1
       ORDER BY e.start_date DESC, sub.id ASC
@@ -364,14 +369,20 @@ app.get('/api/public/student/:token', async (req, res) => {
 
     const marksRes = await client.query(marksQuery, [studentId]);
 
-    // 3. TRANSFORM DATA
+    // 3. TRANSFORM DATA (Group rows into nested Exam Objects)
     const examsMap = new Map();
+
+    const formatDate = (dateObj) => {
+      if (!dateObj) return '';
+      return new Date(dateObj).toISOString().split('T')[0];
+    };
 
     marksRes.rows.forEach(row => {
       if (!examsMap.has(row.exam_id)) {
         examsMap.set(row.exam_id, {
           exam_name: row.exam_name,
-          exam_name_telugu: row.exam_name_telugu,
+          // Assuming exams table might have name_telugu, if not, frontend handles fallback
+          exam_name_telugu: row.name_telugu || row.exam_name, 
           exam_date: formatDate(row.start_date),
           subjects: []
         });
@@ -379,17 +390,14 @@ app.get('/api/public/student/:token', async (req, res) => {
 
       const examEntry = examsMap.get(row.exam_id);
       
-      const finalGrade = row.grade || calculateGrade(row.marks_obtained, row.max_marks);
-
-      // --- CHANGED: Push statistics into the subject object ---
       examEntry.subjects.push({
         name: row.subject_name,
         name_telugu: row.subject_name_telugu,
         marks: Number(row.marks_obtained),
         max: Number(row.max_marks),
-        grade: finalGrade,
+        grade: row.grade, // Use the grade from DB
         
-        // Convert to Number to handle PostgreSQL numeric type (which returns as string)
+        // Stats
         class_avg: row.class_average ? Number(row.class_average) : null, 
         class_max: row.class_highest ? Number(row.class_highest) : null,
         class_min: row.class_lowest ? Number(row.class_lowest) : null
@@ -401,7 +409,7 @@ app.get('/api/public/student/:token', async (req, res) => {
     // 4. CONSTRUCT FINAL RESPONSE
     const responseData = {
       student: {
-        id: studentRow.student_id,
+        // Sensitive ID removed for public view
         name: studentRow.name,
         name_telugu: studentRow.name_telugu,
         pen_number: studentRow.pen_number,
@@ -413,6 +421,7 @@ app.get('/api/public/student/:token', async (req, res) => {
           name_telugu: studentRow.school_name_telugu,
           udise_code: studentRow.udise_code,
           district: studentRow.district_name,
+          mandal: studentRow.mandal_name, // Added Mandal
           address: studentRow.school_address,
           address_telugu: studentRow.school_address_telugu
         }
@@ -423,7 +432,7 @@ app.get('/api/public/student/:token', async (req, res) => {
     res.json(responseData);
 
   } catch (err) {
-    console.error('API Error:', err);
+    console.error('API Public Fetch Error:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   } finally {
     client.release();
