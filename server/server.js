@@ -513,21 +513,33 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
 // --- MARKS ROUTES ---
 
 // 1. FETCH EXISTING MARKS (For Pre-filling)
-// This joins marks with students to ensure we only get marks for the specific class context
+// UPDATED: Fetch Marks (subject_id is now optional)
 app.get('/api/marks/fetch', authenticateToken, async (req, res) => {
   const { exam_id, subject_id, class_id } = req.query;
-  if (!exam_id || !subject_id || !class_id) return res.status(400).json({ error: "Missing params" });
+  
+  if (!exam_id || !class_id) return res.status(400).json({ error: "Missing exam_id or class_id" });
 
   try {
-    const query = `
-      SELECT m.student_id, m.marks_obtained, m.max_marks 
+    let query = `
+      SELECT m.student_id, m.subject_id, m.marks_obtained, m.max_marks 
       FROM marks m 
       JOIN students s ON m.student_id = s.id 
-      WHERE m.exam_id = $1 AND m.subject_id = $2 AND s.class_id = $3
+      WHERE m.exam_id = $1 AND s.class_id = $2
     `;
-    const result = await pool.query(query, [exam_id, subject_id, class_id]);
+    const params = [exam_id, class_id];
+
+    // Only filter by subject if provided and not 'all'
+    if (subject_id && subject_id !== 'all') {
+      query += ` AND m.subject_id = $3`;
+      params.push(subject_id);
+    }
+
+    const result = await pool.query(query, params);
     res.json(result.rows);
-  } catch (err) { res.status(500).json({ error: "Fetch failed" }); }
+  } catch (err) { 
+    console.error(err);
+    res.status(500).json({ error: "Fetch failed" }); 
+  }
 });
 
 // UPDATED: BULK UPDATE MARKS + RECALCULATE STATISTICS
