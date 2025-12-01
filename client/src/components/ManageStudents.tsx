@@ -262,9 +262,8 @@ const ManageStudents = ({ currentUser }) => {
                                 <thead className="bg-gray-50 text-gray-600 font-medium border-b">
                                     <tr>
                                         <th className="p-3 w-16">Sl. No.</th>
-                                        <th className="p-3">Admission No</th>
+                                        <th className="p-3">PEN Number</th>
                                         <th className="p-3">Student Name</th>
-                                        <th className="p-3">Father Name</th>
                                         <th className="p-3">Class</th>
                                         <th className="p-3 text-right">Actions</th>
                                     </tr>
@@ -275,12 +274,11 @@ const ManageStudents = ({ currentUser }) => {
                                         return (
                                             <tr key={student.id} className="hover:bg-gray-50">
                                                 <td className="p-3 text-gray-500">{index + 1}</td>
-                                                <td className="p-3 font-mono text-gray-600">{student.admission_number}</td>
+                                                <td className="p-3 font-mono text-gray-600">{student.pen_number}</td>
                                                 <td className="p-3 font-medium text-gray-800">
                                                     {student.name}
                                                     {student.name_telugu && <span className="block text-xs text-gray-500">{student.name_telugu}</span>}
                                                 </td>
-                                                <td className="p-3 text-gray-600">{student.father_name}</td>
                                                 <td className="p-3 text-gray-600">
                                                     {studentClass ? `Grade ${studentClass.grade_level}` : 'N/A'}
                                                 </td>
