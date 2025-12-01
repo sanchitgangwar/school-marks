@@ -58,9 +58,9 @@ describe('ManageUsers Component', () => {
         });
 
         // Mock confirm
-        global.confirm = vi.fn(() => true);
+        (globalThis as any).confirm = vi.fn(() => true);
         // Mock scrollTo
-        global.scrollTo = vi.fn();
+        (globalThis as any).scrollTo = vi.fn();
     });
 
     const mockAdminUser = { role: 'admin', id: 999 };
@@ -107,7 +107,7 @@ describe('ManageUsers Component', () => {
         const deleteBtns = screen.getAllByTitle('Delete');
         await user.click(deleteBtns[0]); // Delete user1
 
-        expect(global.confirm).toHaveBeenCalled();
+        expect((globalThis as any).confirm).toHaveBeenCalled();
         await waitFor(() => {
             expect(screen.getByText('User deleted successfully.')).toBeInTheDocument();
         });

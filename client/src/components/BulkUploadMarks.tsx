@@ -206,13 +206,14 @@ const BulkUploadMarks = ({ user }) => {
 
         if (isAllSubjectsMode) {
           // Group data by subject for this row
-          const rowDataBySubject = {}; // { subjectId: { marks, grade } }
+          const rowDataBySubject: Record<number, { marks?: string; grade?: string }> = {}; // { subjectId: { marks, grade } }
 
           for (const [colIdx, info] of Object.entries(subjectColumnMap)) {
             const val = row[colIdx];
-            if (val !== undefined) {
-              if (!rowDataBySubject[info.subjectId]) rowDataBySubject[info.subjectId] = {};
-              rowDataBySubject[info.subjectId][info.type] = val.trim();
+            if (val !== undefined && typeof info === 'object' && 'subjectId' in info && 'type' in info) {
+              const typedInfo = info as { subjectId: number; type: 'marks' | 'grade' };
+              if (!rowDataBySubject[typedInfo.subjectId]) rowDataBySubject[typedInfo.subjectId] = {};
+              rowDataBySubject[typedInfo.subjectId][typedInfo.type] = val.trim();
             }
           }
 

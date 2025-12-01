@@ -28,57 +28,64 @@ interface PerformanceChartProps {
     xKey?: string;
     tickFormatter?: (value: string) => string;
     minimal?: boolean;
-    onBarClick?: (item: any) => void;
+    onBarClick?: (item: GradeDistributionData) => void;
 }
+
+interface TooltipProps {
+    active?: boolean;
+    payload?: Array<{ payload: GradeDistributionData }>;
+    label?: string;
+}
+
+const CustomTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+        const item = payload[0].payload;
+        return (
+            <div className="bg-white p-3 border border-gray-200 shadow-lg rounded text-sm text-gray-700">
+                <p className="font-bold mb-2 text-gray-900">{label}</p>
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#3cb819' }}></span>
+                        <span className="font-medium">Grade A:</span>
+                        <span>{item.grade_a} ({item.grade_a_pct}%)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FFC44A' }}></span>
+                        <span className="font-medium">Grade B:</span>
+                        <span>{item.grade_b} ({item.grade_b_pct}%)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#E8793D' }}></span>
+                        <span className="font-medium">Grade C:</span>
+                        <span>{item.grade_c} ({item.grade_c_pct}%)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#B8193C' }}></span>
+                        <span className="font-medium">Grade D:</span>
+                        <span>{item.grade_d} ({item.grade_d_pct}%)</span>
+                    </div>
+                    <div className="pt-2 mt-2 border-t border-gray-100 font-semibold text-gray-900">
+                        Total Students: {item.total}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
 
 const PerformanceChart: React.FC<PerformanceChartProps> = ({ data = [], xKey = 'subject', tickFormatter, minimal = false, onBarClick }) => {
 
-    const CustomTooltip = ({ active, payload, label }: any) => {
-        if (active && payload && payload.length) {
-            // payload order depends on the stack order
-            // We want to show all grades
-            const item = payload[0].payload;
-            return (
-                <div className="bg-white p-3 border border-gray-200 shadow-lg rounded text-sm text-gray-700">
-                    <p className="font-bold mb-2 text-gray-900">{label}</p>
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#3cb819' }}></span>
-                            <span className="font-medium">Grade A:</span>
-                            <span>{item.grade_a} ({item.grade_a_pct}%)</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FFC44A' }}></span>
-                            <span className="font-medium">Grade B:</span>
-                            <span>{item.grade_b} ({item.grade_b_pct}%)</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#E8793D' }}></span>
-                            <span className="font-medium">Grade C:</span>
-                            <span>{item.grade_c} ({item.grade_c_pct}%)</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#B8193C' }}></span>
-                            <span className="font-medium">Grade D:</span>
-                            <span>{item.grade_d} ({item.grade_d_pct}%)</span>
-                        </div>
-                        <div className="pt-2 mt-2 border-t border-gray-100 font-semibold text-gray-900">
-                            Total Students: {item.total}
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-        return null;
-    };
+
 
     const safeData = Array.isArray(data) ? data : [];
     const sortedData = [...safeData].sort((a, b) => b.grade_d_pct - a.grade_d_pct);
     const chartHeight = Math.max(384, sortedData.length * 40);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleBarClick = (data: any) => {
-        if (onBarClick && data) {
-            onBarClick(data);
+        if (onBarClick && data && data.payload) {
+            onBarClick(data.payload as GradeDistributionData);
         }
     };
 

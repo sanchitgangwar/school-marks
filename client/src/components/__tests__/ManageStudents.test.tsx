@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ManageStudents from '../ManageStudents';
@@ -34,8 +34,8 @@ describe('ManageStudents Component', () => {
         vi.resetAllMocks();
 
         // Mock global fetch
-        // @ts-ignore
-        global.fetch = vi.fn((url) => {
+        // @ts-expect-error - Mocking fetch for tests
+        globalThis.fetch = vi.fn((url: string, options?: RequestInit) => {
             console.log('Fetch called with:', url);
             if (url.includes('/districts')) return Promise.resolve({ json: () => Promise.resolve(mockDistricts) });
             if (url.includes('/classes')) return Promise.resolve({ json: () => Promise.resolve(mockClasses) });
@@ -68,13 +68,13 @@ describe('ManageStudents Component', () => {
         await user.selectOptions(screen.getByRole('combobox', { name: /district/i }), '1');
 
         // Wait for fetch to be called
-        await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/mandals'), expect.anything()));
+        await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('/mandals'), expect.anything()));
 
         // Select Mandal
         await waitFor(() => screen.getByText('Mandal A'));
         await user.selectOptions(screen.getByRole('combobox', { name: /mandal/i }), '1');
 
-        await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/schools'), expect.anything()));
+        await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('/schools'), expect.anything()));
 
         // Select School
         await waitFor(() => screen.getByText('School A'));

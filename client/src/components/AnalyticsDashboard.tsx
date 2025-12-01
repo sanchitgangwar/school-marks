@@ -23,16 +23,29 @@ const calculateGrade = (obtained: number, max: number) => {
     return 'D';
 };
 
-const StudentMarksTable = ({ data }: { data: any[] }) => {
+interface MarksData {
+    student_name: string;
+    subject: string;
+    marks_obtained: number;
+    max_marks: number;
+    grade?: string;
+}
+
+interface PivotRow {
+    name: string;
+    [subject: string]: MarksData | string;
+}
+
+const StudentMarksTable = ({ data }: { data: MarksData[] }) => {
     const pivotData = useMemo(() => {
-        const map: Record<string, any> = {};
+        const map: Record<string, PivotRow> = {};
         const subjects = new Set<string>();
         data.forEach(item => {
             if (!map[item.student_name]) map[item.student_name] = { name: item.student_name };
             map[item.student_name][item.subject] = item;
             subjects.add(item.subject);
         });
-        return { rows: Object.values(map).sort((a: any, b: any) => a.name.localeCompare(b.name)), subjects: Array.from(subjects).sort() };
+        return { rows: Object.values(map).sort((a, b) => a.name.localeCompare(b.name)), subjects: Array.from(subjects).sort() };
     }, [data]);
 
     return (
@@ -46,11 +59,12 @@ const StudentMarksTable = ({ data }: { data: any[] }) => {
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                    {pivotData.rows.map((row: any) => (
+                    {pivotData.rows.map((row: PivotRow) => (
                         <tr key={row.name}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white z-10 border-r border-gray-100">{row.name}</td>
                             {pivotData.subjects.map((sub: string) => {
-                                const cell = row[sub];
+                                const cellValue = row[sub];
+                                const cell = typeof cellValue !== 'string' ? cellValue as MarksData : null;
                                 const grade = cell ? calculateGrade(Number(cell.marks_obtained), Number(cell.max_marks)) : undefined;
                                 return (
                                     <td key={sub} className={`px-6 py-4 whitespace-nowrap text-center text-sm font-semibold cursor-default transition-colors ${getGradeColor(grade || '')}`}>
@@ -65,30 +79,46 @@ const StudentMarksTable = ({ data }: { data: any[] }) => {
         </div>
     );
 };
+interface DrillDownData {
+    id: number;
+    name: string;
+    avg_score: number;
+    pass_percentage: number;
+    grade_a_count: number;
+}
+
 interface DashboardProps {
-    user: any;
+    user: {
+        role: string;
+        district_id?: number;
+        mandal_id?: number;
+        school_id?: number;
+        district_name?: string;
+        mandal_name?: string;
+        school_name?: string;
+    };
 }
 
 const AnalyticsDashboard: React.FC<DashboardProps> = ({ user }) => {
     const [loading, setLoading] = useState(true);
-    const [exams, setExams] = useState<any[]>([]);
+    const [exams, setExams] = useState<Array<{ id: number; name: string; end_date: string }>>([]);
     const [selectedExamId, setSelectedExamId] = useState<string>('');
     const [viewLevel, setViewLevel] = useState<'root' | 'district' | 'mandal' | 'school'>('root');
     const [selectedIds, setSelectedIds] = useState<{ districtId: number | null, mandalId: number | null, schoolId: number | null }>({
         districtId: null,
         mandalId: null,
-        schoolId: null
+        schoolId: null,
     });
     const [selectedNames, setSelectedNames] = useState<{ districtName: string | null, mandalName: string | null, schoolName: string | null }>({
         districtName: null,
         mandalName: null,
-        schoolName: null
+        schoolName: null,
     });
 
 
     const [entityChartData, setEntityChartData] = useState([]);
-    const [studentMarksData, setStudentMarksData] = useState<any[]>([]);
-    const [drillDownData, setDrillDownData] = useState([]);
+    const [studentMarksData, setStudentMarksData] = useState<MarksData[]>([]);
+    const [drillDownData, setDrillDownData] = useState<DrillDownData[]>([]);
     const [stats, setStats] = useState({
         avg: 0,
         pass: 0,
@@ -105,7 +135,7 @@ const AnalyticsDashboard: React.FC<DashboardProps> = ({ user }) => {
     useEffect(() => {
         if (user.role === 'school_admin') {
             setViewLevel('school');
-            setSelectedIds({ districtId: user.district_id, mandalId: user.mandal_id, schoolId: user.school_id });
+            setSelectedIds({ districtId: user.district_id ?? null, mandalId: user.mandal_id ?? null, schoolId: user.school_id ?? null });
             setSelectedNames({
                 districtName: user.district_name || null,
                 mandalName: user.mandal_name || null,
@@ -113,7 +143,7 @@ const AnalyticsDashboard: React.FC<DashboardProps> = ({ user }) => {
             });
         } else if (user.role === 'meo') {
             setViewLevel('mandal');
-            setSelectedIds({ districtId: user.district_id, mandalId: user.mandal_id, schoolId: null });
+            setSelectedIds({ districtId: user.district_id ?? null, mandalId: user.mandal_id ?? null, schoolId: null });
             setSelectedNames({
                 districtName: user.district_name || null,
                 mandalName: user.mandal_name || null,
@@ -121,7 +151,7 @@ const AnalyticsDashboard: React.FC<DashboardProps> = ({ user }) => {
             });
         } else if (user.role === 'deo') {
             setViewLevel('district');
-            setSelectedIds({ districtId: user.district_id, mandalId: null, schoolId: null });
+            setSelectedIds({ districtId: user.district_id ?? null, mandalId: null, schoolId: null });
             setSelectedNames({
                 districtName: user.district_name || null,
                 mandalName: null,
@@ -217,7 +247,7 @@ const AnalyticsDashboard: React.FC<DashboardProps> = ({ user }) => {
 
                 // Calculate Stats from Marks
                 const studentMap: Record<string, { total: number, count: number, passed: boolean, grade: string }> = {};
-                safeMarks.forEach((m: any) => {
+                safeMarks.forEach((m: MarksData) => {
                     if (!studentMap[m.student_name]) studentMap[m.student_name] = { total: 0, count: 0, passed: true, grade: 'D' };
                     const pct = (Number(m.marks_obtained) / Number(m.max_marks)) * 100;
                     studentMap[m.student_name].total += pct;
@@ -247,8 +277,8 @@ const AnalyticsDashboard: React.FC<DashboardProps> = ({ user }) => {
 
                 // Calculate Stats from Drill Down Data
                 if (drillJson.length > 0) {
-                    const totalAvg = drillJson.reduce((acc: number, curr: any) => acc + Number(curr.avg_score), 0) / drillJson.length;
-                    const totalPass = drillJson.reduce((acc: number, curr: any) => acc + (Number(curr.pass_percentage) || 0), 0) / drillJson.length;
+                    const totalAvg = drillJson.reduce((acc: number, curr: DrillDownData) => acc + Number(curr.avg_score), 0) / drillJson.length;
+                    const totalPass = drillJson.reduce((acc: number, curr: DrillDownData) => acc + (Number(curr.pass_percentage) || 0), 0) / drillJson.length;
                     avg = parseFloat(totalAvg.toFixed(1));
                     pass = parseFloat(totalPass.toFixed(1));
                 }

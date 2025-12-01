@@ -30,11 +30,11 @@ describe('ManageTests Component', () => {
         vi.resetAllMocks();
 
         // Mock global fetch
-        // @ts-ignore
-        global.fetch = vi.fn((url) => {
+        // @ts-expect-error - Mocking fetch for tests
+        globalThis.fetch = vi.fn((url: string, options?: RequestInit) => {
             if (url.includes('/exams')) {
                 // Check if it's a delete request
-                if (url.includes('/exams/1') && arguments[1]?.method === 'DELETE') {
+                if (url.includes('/exams/1') && options?.method === 'DELETE') {
                     return Promise.resolve({ ok: true });
                 }
                 return Promise.resolve({ json: () => Promise.resolve(mockExams) });

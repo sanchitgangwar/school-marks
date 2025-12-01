@@ -21,11 +21,11 @@ describe('ManageDistricts Component', () => {
         vi.resetAllMocks();
 
         // Mock global fetch
-        // @ts-ignore
-        global.fetch = vi.fn((url) => {
+        // @ts-expect-error - Mocking fetch for tests
+        globalThis.fetch = vi.fn((url: string, options?: RequestInit) => {
             if (url.includes('/districts')) {
                 // Check if it's a delete request
-                if (url.includes('/districts/1') && arguments[1]?.method === 'DELETE') {
+                if (url.includes('/districts/1') && options?.method === 'DELETE') {
                     return Promise.resolve({ ok: true });
                 }
                 return Promise.resolve({ json: () => Promise.resolve(mockDistricts) });

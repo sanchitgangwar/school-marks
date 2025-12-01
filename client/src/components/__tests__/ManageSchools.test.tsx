@@ -32,14 +32,14 @@ describe('ManageSchools Component', () => {
         vi.resetAllMocks();
 
         // Mock global fetch
-        // @ts-ignore
-        global.fetch = vi.fn((url) => {
+        // @ts-expect-error - Mocking fetch for tests
+        globalThis.fetch = vi.fn((url: string, options?: RequestInit) => {
             console.log('Fetch called with:', url);
             if (url.includes('/districts')) return Promise.resolve({ json: () => Promise.resolve(mockDistricts) });
             if (url.includes('/mandals')) return Promise.resolve({ json: () => Promise.resolve(mockMandals) });
             if (url.includes('/schools')) {
                 // Check if it's a delete request
-                if (url.includes('/schools/1') && arguments[1]?.method === 'DELETE') {
+                if (url.includes('/schools/1') && options?.method === 'DELETE') {
                     return Promise.resolve({ ok: true });
                 }
                 return Promise.resolve({ json: () => Promise.resolve(mockSchools) });
@@ -70,13 +70,13 @@ describe('ManageSchools Component', () => {
         await user.selectOptions(screen.getByRole('combobox', { name: /district/i }), '1');
 
         // Wait for fetch to be called
-        await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/mandals'), expect.anything()));
+        await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('/mandals'), expect.anything()));
 
         // Select Mandal
         await waitFor(() => screen.getByText('Mandal A'));
         await user.selectOptions(screen.getByRole('combobox', { name: /mandal/i }), '1');
 
-        await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/schools'), expect.anything()));
+        await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('/schools'), expect.anything()));
 
         // Check if schools are loaded
         await waitFor(() => {

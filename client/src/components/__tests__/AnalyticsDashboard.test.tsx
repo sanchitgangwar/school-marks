@@ -33,10 +33,10 @@ vi.mock('lucide-react', () => ({
     ChevronRight: () => <div data-testid="icon-chevron-right" />,
 }));
 
-global.fetch = vi.fn();
+(globalThis as any).fetch = vi.fn();
 
 // Mock ResizeObserver
-global.ResizeObserver = class ResizeObserver {
+(globalThis as any).ResizeObserver = class ResizeObserver {
     observe() { }
     unobserve() { }
     disconnect() { }
@@ -56,7 +56,7 @@ describe('AnalyticsDashboard', () => {
     });
 
     it('renders dashboard header and initial state', async () => {
-        (global.fetch as any).mockResolvedValue({
+        (globalThis.fetch as any).mockResolvedValue({
             json: async () => [],
             ok: true
         });
@@ -76,7 +76,7 @@ describe('AnalyticsDashboard', () => {
             { id: 1, name: 'District A', avg_score: 75, pass_percentage: 80, grade_a_count: 100 }
         ];
 
-        (global.fetch as any).mockImplementation((url: string) => {
+        (globalThis.fetch as any).mockImplementation((url: string) => {
             console.log('Fetch URL:', url);
             if (url.includes('/api/analytics/stats')) {
                 return Promise.resolve({
@@ -161,7 +161,7 @@ describe('AnalyticsDashboard', () => {
             { id: 1, name: 'District A', avg_score: 75 }
         ];
 
-        (global.fetch as any).mockResolvedValue({
+        (globalThis.fetch as any).mockResolvedValue({
             json: async () => mockDrillDownData,
             ok: true
         });

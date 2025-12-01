@@ -28,12 +28,12 @@ describe('ManageMandals Component', () => {
         vi.resetAllMocks();
 
         // Mock global fetch
-        // @ts-ignore
-        global.fetch = vi.fn((url) => {
+        // @ts-expect-error - Mocking fetch for tests
+        globalThis.fetch = vi.fn((url: string, options?: RequestInit) => {
             if (url.includes('/districts')) return Promise.resolve({ json: () => Promise.resolve(mockDistricts) });
             if (url.includes('/mandals')) {
                 // Check if it's a delete request
-                if (url.includes('/mandals/1') && arguments[1]?.method === 'DELETE') {
+                if (url.includes('/mandals/1') && options?.method === 'DELETE') {
                     return Promise.resolve({ ok: true });
                 }
                 return Promise.resolve({ json: () => Promise.resolve(mockMandals) });
@@ -64,7 +64,7 @@ describe('ManageMandals Component', () => {
         await user.selectOptions(screen.getByRole('combobox', { name: /district/i }), '1');
 
         // Wait for fetch to be called
-        await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/mandals'), expect.anything()));
+        await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('/mandals'), expect.anything()));
 
         // Check if mandals are loaded
         await waitFor(() => {
