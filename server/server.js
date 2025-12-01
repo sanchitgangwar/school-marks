@@ -42,7 +42,7 @@ const ROLE_HIERARCHY = {
 const calculateGrade = (obtained, max) => {
   if (!max || max === 0) return 'N/A';
   const percentage = (obtained / max) * 100;
-   
+
   if (percentage >= 91) return 'A1';
   if (percentage >= 81) return 'A2';
   if (percentage >= 71) return 'B1';
@@ -92,17 +92,17 @@ const verifyJurisdiction = (req, res, next) => {
   if (user.role === 'admin') return next(); // Admin has global access
 
   // 1. Check District Scope
-  if (user.district_id && target.district_id && user.district_id !== target.district_id) {
+  if (user && user.district_id && target.district_id && user.district_id !== target.district_id) {
     return res.status(403).json({ error: "Outside District Jurisdiction" });
   }
-  
+
   // 2. Check Mandal Scope
-  if (user.mandal_id && target.mandal_id && user.mandal_id !== target.mandal_id) {
+  if (user && user.mandal_id && target.mandal_id && user.mandal_id !== target.mandal_id) {
     return res.status(403).json({ error: "Outside Mandal Jurisdiction" });
   }
 
   // 3. Check School Scope
-  if (user.school_id && target.school_id && user.school_id !== target.school_id) {
+  if (user && user.school_id && target.school_id && user.school_id !== target.school_id) {
     return res.status(403).json({ error: "Outside School Jurisdiction" });
   }
 
@@ -117,7 +117,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-    
+
     if (result.rows.length === 0) return res.status(400).json({ error: "User not found" });
 
     const user = result.rows[0];
@@ -157,17 +157,17 @@ app.post('/api/admin/create-user', authenticateToken, verifyJurisdiction, async 
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     const query = `
       INSERT INTO users (username, password_hash, role, full_name, district_id, mandal_id, school_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, username, role
     `;
-    
+
     const result = await pool.query(query, [
-      username, hashedPassword, role, full_name, 
-      district_id || req.user.district_id, 
-      mandal_id || req.user.mandal_id, 
+      username, hashedPassword, role, full_name,
+      district_id || req.user.district_id,
+      mandal_id || req.user.mandal_id,
       school_id || req.user.school_id
     ]);
 
@@ -179,6 +179,112 @@ app.post('/api/admin/create-user', authenticateToken, verifyJurisdiction, async 
   }
 });
 
+// 2a. GET USERS (Scoped)
+app.get('/api/admin/users', authenticateToken, verifyJurisdiction, async (req, res) => {
+  const { role, district_id, mandal_id, school_id } = req.user;
+
+  let query = `
+    SELECT u.id, u.username, u.role, u.full_name, u.district_id, u.mandal_id, u.school_id,
+           d.name as district_name, m.name as mandal_name, s.name as school_name
+    FROM users u
+    LEFT JOIN districts d ON u.district_id = d.id
+    LEFT JOIN mandals m ON u.mandal_id = m.id
+    LEFT JOIN schools s ON u.school_id = s.id
+    WHERE 1=1
+  `;
+  const params = [];
+  let idx = 1;
+
+  if (role !== 'admin') {
+    if (district_id) { query += ` AND u.district_id = $${idx++}`; params.push(district_id); }
+    if (mandal_id) { query += ` AND u.mandal_id = $${idx++}`; params.push(mandal_id); }
+    if (school_id) { query += ` AND u.school_id = $${idx++}`; params.push(school_id); }
+  }
+
+  query += ` ORDER BY u.created_at DESC`;
+
+  try {
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
+
+// 2b. UPDATE USER
+app.put('/api/admin/users/:id', authenticateToken, verifyJurisdiction, async (req, res) => {
+  const { id } = req.params;
+  const { username, password, role, full_name, district_id, mandal_id, school_id } = req.body;
+
+  // Hierarchy Check
+  const targetUserRes = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
+  if (targetUserRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+
+  const targetRoleLevel = ROLE_HIERARCHY[targetUserRes.rows[0].role];
+  const creatorRoleLevel = ROLE_HIERARCHY[req.user.role];
+
+  // Cannot edit someone with higher or equal rank (unless it's yourself, but UI should prevent self-role-change)
+  if (targetRoleLevel <= creatorRoleLevel && req.user.id !== parseInt(id)) {
+    return res.status(403).json({ error: "Insufficient permissions to edit this user." });
+  }
+
+  try {
+    let query, params;
+    if (password && password.trim() !== '') {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      query = `
+        UPDATE users 
+        SET username=$1, password_hash=$2, role=$3, full_name=$4, district_id=$5, mandal_id=$6, school_id=$7
+        WHERE id=$8 RETURNING id, username, role, full_name
+      `;
+      params = [username, hashedPassword, role, full_name, district_id, mandal_id, school_id, id];
+    } else {
+      query = `
+        UPDATE users 
+        SET username=$1, role=$2, full_name=$3, district_id=$4, mandal_id=$5, school_id=$6
+        WHERE id=$7 RETURNING id, username, role, full_name
+      `;
+      params = [username, role, full_name, district_id, mandal_id, school_id, id];
+    }
+
+    const result = await pool.query(query, params);
+    res.json({ message: "User updated successfully", user: result.rows[0] });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Update failed. Username might be duplicate." });
+  }
+});
+
+// 2c. DELETE USER
+app.delete('/api/admin/users/:id', authenticateToken, verifyJurisdiction, async (req, res) => {
+  const { id } = req.params;
+
+  if (parseInt(id) === req.user.id) {
+    return res.status(400).json({ error: "Cannot delete yourself." });
+  }
+
+  // Hierarchy Check
+  const targetUserRes = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
+  if (targetUserRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+
+  const targetRoleLevel = ROLE_HIERARCHY[targetUserRes.rows[0].role];
+  const creatorRoleLevel = ROLE_HIERARCHY[req.user.role];
+
+  if (targetRoleLevel <= creatorRoleLevel) {
+    return res.status(403).json({ error: "Insufficient permissions to delete this user." });
+  }
+
+  try {
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Delete failed" });
+  }
+});
+
 // --- SCHOOL ROUTES (UPDATED) ---
 app.post('/api/schools/create', authenticateToken, verifyJurisdiction, async (req, res) => {
   // CHANGED: Added name_telugu and address_telugu
@@ -186,7 +292,7 @@ app.post('/api/schools/create', authenticateToken, verifyJurisdiction, async (re
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    
+
     // CHANGED: Updated SQL to insert Telugu fields
     const schoolQuery = `
       INSERT INTO schools (name, name_telugu, udise_code, address, address_telugu, district_id, mandal_id) 
@@ -216,11 +322,60 @@ app.post('/api/entities/:type/add', authenticateToken, verifyJurisdiction, async
     const columns = Object.keys(data).join(', ');
     const values = Object.values(data);
     const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-    
+
     const query = `INSERT INTO ${type} (${columns}) VALUES (${placeholders}) RETURNING *`;
     const result = await pool.query(query, values);
-    
+
     res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3a. GENERIC ENTITY UPDATE
+app.put('/api/entities/:type/:id', authenticateToken, verifyJurisdiction, async (req, res) => {
+  const { type, id } = req.params;
+  const data = req.body;
+
+  const validTables = ['districts', 'mandals', 'schools', 'students', 'exams'];
+  if (!validTables.includes(type)) return res.status(400).json({ error: "Invalid Entity" });
+
+  try {
+    // Filter out id from data if present to avoid updating it
+    const { id: _, ...updateData } = data;
+
+    const updates = Object.keys(updateData).map((key, i) => `${key} = $${i + 1}`).join(', ');
+    const values = Object.values(updateData);
+
+    const query = `UPDATE ${type} SET ${updates} WHERE id = $${values.length + 1} RETURNING *`;
+    const result = await pool.query(query, [...values, id]);
+
+    if (result.rows.length === 0) return res.status(404).json({ error: "Entity not found" });
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3b. GENERIC ENTITY DELETE
+app.delete('/api/entities/:type/:id', authenticateToken, verifyJurisdiction, async (req, res) => {
+  const { type, id } = req.params;
+
+  const validTables = ['districts', 'mandals', 'schools', 'students', 'exams'];
+  if (!validTables.includes(type)) return res.status(400).json({ error: "Invalid Entity" });
+
+  try {
+    // For students, we might want to cascade delete marks or handle it in DB. 
+    // Assuming DB has ON DELETE CASCADE or we just delete the student.
+    const query = `DELETE FROM ${type} WHERE id = $1 RETURNING id`;
+    const result = await pool.query(query, [id]);
+
+    if (result.rows.length === 0) return res.status(404).json({ error: "Entity not found" });
+
+    res.json({ message: "Deleted successfully", id });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -231,8 +386,8 @@ app.post('/api/entities/:type/add', authenticateToken, verifyJurisdiction, async
 app.get('/api/entities/:type', authenticateToken, async (req, res) => {
   const { type } = req.params;
   const { role, district_id, mandal_id, school_id } = req.user;
-  const { district_id: q_d, mandal_id: q_m, school_id: q_s } = req.query; 
-  
+  const { district_id: q_d, mandal_id: q_m, school_id: q_s } = req.query;
+
   // HIGHLIGHT: Auto-seed Global Classes if empty
   if (type === 'classes') {
     const check = await pool.query('SELECT count(*) FROM classes');
@@ -250,18 +405,18 @@ app.get('/api/entities/:type', authenticateToken, async (req, res) => {
 
   // HIGHLIGHT: Exclude 'classes' from Role-Based Filtering
   if (['exams', 'classes'].includes(type)) {
-     // Global entities: Everyone sees all Grades and all Exams
+    // Global entities: Everyone sees all Grades and all Exams
   } else if (role !== 'admin') {
-      if (['mandals', 'schools'].includes(type) && district_id) { query += ` AND district_id = $${idx++}`; params.push(district_id); }
-      if (['schools', 'students'].includes(type) && mandal_id) { query += ` AND mandal_id = $${idx++}`; params.push(mandal_id); }
-      if (['students'].includes(type) && school_id) { query += ` AND school_id = $${idx++}`; params.push(school_id); }
+    if (['mandals', 'schools'].includes(type) && district_id) { query += ` AND district_id = $${idx++}`; params.push(district_id); }
+    if (['schools', 'students'].includes(type) && mandal_id) { query += ` AND mandal_id = $${idx++}`; params.push(mandal_id); }
+    if (['students'].includes(type) && school_id) { query += ` AND school_id = $${idx++}`; params.push(school_id); }
   }
 
   // HIGHLIGHT: Exclude 'classes' from Dropdown Filtering
   if (q_d && ['mandals', 'schools'].includes(type)) { query += ` AND district_id = $${idx++}`; params.push(q_d); }
   if (q_m && ['schools'].includes(type)) { query += ` AND mandal_id = $${idx++}`; params.push(q_m); }
   if (q_s && ['students'].includes(type)) { query += ` AND school_id = $${idx++}`; params.push(q_s); }
-  
+
   // Note: We intentionally removed the check that filtered classes by school_id
 
   // Optional: Order classes numerically
@@ -382,23 +537,23 @@ app.get('/api/public/student/:token', async (req, res) => {
         examsMap.set(row.exam_id, {
           exam_name: row.exam_name,
           // Assuming exams table might have name_telugu, if not, frontend handles fallback
-          exam_name_telugu: row.name_telugu || row.exam_name, 
+          exam_name_telugu: row.name_telugu || row.exam_name,
           exam_date: formatDate(row.start_date),
           subjects: []
         });
       }
 
       const examEntry = examsMap.get(row.exam_id);
-      
+
       examEntry.subjects.push({
         name: row.subject_name,
         name_telugu: row.subject_name_telugu,
         marks: Number(row.marks_obtained),
         max: Number(row.max_marks),
         grade: row.grade, // Use the grade from DB
-        
+
         // Stats
-        class_avg: row.class_average ? Number(row.class_average) : null, 
+        class_avg: row.class_average ? Number(row.class_average) : null,
         class_max: row.class_highest ? Number(row.class_highest) : null,
         class_min: row.class_lowest ? Number(row.class_lowest) : null
       });
@@ -488,7 +643,7 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
 // UPDATED: Fetch Marks (subject_id is now optional)
 app.get('/api/marks/fetch', authenticateToken, async (req, res) => {
   const { exam_id, subject_id, class_id } = req.query;
-  
+
   if (!exam_id || !class_id) return res.status(400).json({ error: "Missing exam_id or class_id" });
 
   try {
@@ -508,20 +663,20 @@ app.get('/api/marks/fetch', authenticateToken, async (req, res) => {
 
     const result = await pool.query(query, params);
     res.json(result.rows);
-  } catch (err) { 
+  } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Fetch failed" }); 
+    res.status(500).json({ error: "Fetch failed" });
   }
 });
 
 // UPDATED: BULK UPDATE MARKS + RECALCULATE STATISTICS
 app.post('/api/marks/bulk-update', authenticateToken, async (req, res) => {
-  const { exam_id, subject_id, marks_data } = req.body; 
+  const { exam_id, subject_id, marks_data } = req.body;
   const client = await pool.connect();
-  
+
   try {
     await client.query('BEGIN');
-    
+
     // 1. Insert/Update Marks
     for (const entry of marks_data) {
       const query = `
@@ -596,7 +751,7 @@ app.get('/api/schools/:schoolId/qr-data', authenticateToken, async (req, res) =>
       LEFT JOIN classes c ON s.class_id = c.id
       WHERE s.school_id = $1
     `;
-    
+
     const params = [schoolId];
 
     // Dynamic Filter: If class_id is provided and not 'all', filter by it
@@ -606,7 +761,7 @@ app.get('/api/schools/:schoolId/qr-data', authenticateToken, async (req, res) =>
     }
 
     query += ` ORDER BY c.grade_level ASC, s.name ASC`;
-    
+
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
@@ -615,6 +770,10 @@ app.get('/api/schools/:schoolId/qr-data', authenticateToken, async (req, res) =>
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;
