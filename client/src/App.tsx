@@ -1,11 +1,41 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Code-splitting: Load pages dynamically
 const LoginPage = lazy(() => import('./pages/Login'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
+const DashboardLayout = lazy(() => import('./pages/Dashboard'));
 const PublicReportCard = lazy(() => import('./pages/PublicReportCard'));
 const QRCodePrintView = lazy(() => import('./pages/QRCodePrintView'));
+
+// Lazy load components for Dashboard routes
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
+const ManageUsers = lazy(() => import('./components/ManageUsers'));
+const ManageDistricts = lazy(() => import('./components/ManageDistricts'));
+const ManageMandals = lazy(() => import('./components/ManageMandals'));
+const ManageSchools = lazy(() => import('./components/ManageSchools'));
+const ManageTests = lazy(() => import('./components/ManageTests'));
+const ManageStudents = lazy(() => import('./components/ManageStudents'));
+const MarksEntryGrid = lazy(() => import('./components/MarksEntryGrid'));
+const BulkUploadMarks = lazy(() => import('./components/BulkUploadMarks'));
+const GenerateQRSelector = lazy(() => import('./components/GenerateQRSelector'));
+
+// Helper Components for Auth Logic
+const ProtectedLayout = ({ user, children }) => {
+  const location = useLocation();
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  return children;
+};
+
+const LoginWrapper = ({ user, onLogin }) => {
+  const location = useLocation();
+  const from = location.state?.from?.pathname || "/dashboard";
+  if (user) {
+    return <Navigate to={from} replace />;
+  }
+  return <LoginPage onLogin={onLogin} />;
+};
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -46,20 +76,31 @@ const App = () => {
           <Route path="/student/:token" element={<PublicReportCard />} />
 
           {/* Auth Route: Login */}
-          <Route path="/login" element={
-            user ? <Navigate to="/dashboard" replace /> : <LoginPage onLogin={handleLogin} />
-          } />
+          <Route path="/login" element={<LoginWrapper user={user} onLogin={handleLogin} />} />
 
-          {/* Protected Route: Dashboard */}
-          <Route path="/dashboard" element={
-            user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />
-          } />
+          {/* Protected Routes: Dashboard Layout */}
+          <Route element={
+            <ProtectedLayout user={user}>
+              <DashboardLayout user={user} onLogout={handleLogout} />
+            </ProtectedLayout>
+          }>
+            <Route path="/dashboard" element={<AnalyticsDashboard user={user} />} />
+            <Route path="/manage/users" element={<ManageUsers currentUser={user} />} />
+            <Route path="/manage/districts" element={<ManageDistricts />} />
+            <Route path="/manage/mandals" element={<ManageMandals currentUser={user} />} />
+            <Route path="/manage/schools" element={<ManageSchools currentUser={user} />} />
+            <Route path="/manage/tests" element={<ManageTests />} />
+            <Route path="/manage/students" element={<ManageStudents currentUser={user} />} />
+            <Route path="/manage/marks" element={<MarksEntryGrid user={user} />} />
+            <Route path="/bulk-upload-marks" element={<BulkUploadMarks user={user} />} />
+            <Route path="/generate-qr" element={<GenerateQRSelector user={user} />} />
+          </Route>
 
           {/* Protected Route: QR Code Print */}
           <Route path="/print-qrs/:schoolId" element={<QRCodePrintView />} />
 
           {/* Default Redirect */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Suspense>
     </Router>
