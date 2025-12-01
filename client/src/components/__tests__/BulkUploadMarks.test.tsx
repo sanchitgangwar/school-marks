@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import BulkUploadMarks from '../BulkUploadMarks';
@@ -6,15 +6,18 @@ import BulkUploadMarks from '../BulkUploadMarks';
 // Mock Lucide icons
 vi.mock('lucide-react', () => ({
     FileSpreadsheet: () => <span data-testid="spreadsheet-icon" />,
-    Download: () => <span data-testid="download-icon" />,
     Upload: () => <span data-testid="upload-icon" />,
+    Download: () => <span data-testid="download-icon" />,
+    FileText: () => <span data-testid="file-icon" />,
+    AlertCircle: () => <span data-testid="alert-icon" />,
+    CheckCircle: () => <span data-testid="check-icon" />,
     Loader: () => <span data-testid="loader-icon" />,
 }));
 
 // Mock Data
 const mockDistricts = [{ id: 1, name: 'District A' }];
 const mockMandals = [{ id: 1, name: 'Mandal A', district_id: 1 }];
-const mockSchools = [{ id: 1, name: 'School A', mandal_id: 1, udise_code: '123' }];
+const mockSchools = [{ id: 1, name: 'School A', mandal_id: 1 }];
 const mockExams = [{ id: 1, name: 'Exam 1' }];
 const mockSubjects = [{ id: 1, name: 'Math' }, { id: 2, name: 'Science' }];
 const mockStudents = [{ id: 1, name: 'Student A', pen_number: 'PEN123', class_id: 1 }];
@@ -24,14 +27,16 @@ const mockClasses = [{ id: 1, grade_level: 10 }];
 vi.stubGlobal('import', { meta: { env: { VITE_API_URL: 'http://localhost:3000' } } });
 
 describe('BulkUploadMarks Component', () => {
+    const mockUser = { role: 'admin', id: 1 };
+
     beforeEach(() => {
         vi.resetAllMocks();
 
         // Mock global fetch
-        // @ts-ignore
+        // @ts-expect-error - Mocking global fetch
         global.fetch = vi.fn((url) => {
-            if (url.includes('/entities/districts')) return Promise.resolve({ json: () => Promise.resolve(mockDistricts) });
-            if (url.includes('/entities/mandals')) return Promise.resolve({ json: () => Promise.resolve(mockMandals) });
+            if (url.includes('/entities/districts')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockDistricts) });
+            if (url.includes('/entities/mandals')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockMandals) });
             if (url.includes('/entities/schools')) return Promise.resolve({ json: () => Promise.resolve(mockSchools) });
             if (url.includes('/entities/exams')) return Promise.resolve({ json: () => Promise.resolve(mockExams) });
             if (url.includes('/entities/subjects')) return Promise.resolve({ json: () => Promise.resolve(mockSubjects) });
@@ -42,8 +47,6 @@ describe('BulkUploadMarks Component', () => {
             return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
         });
     });
-
-    const mockUser = { role: 'admin' };
 
     it('renders correctly', async () => {
         render(<BulkUploadMarks user={mockUser} />);

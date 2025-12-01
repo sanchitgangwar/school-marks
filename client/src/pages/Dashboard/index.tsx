@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  School, User, FileText, LogOut, Users, Map, Layers,
+  FileText, LogOut, Users, Map, Layers,
   MapPin, Building, PenTool, UserPlus, QrCode, Sheet
 } from 'lucide-react';
 
@@ -13,6 +13,7 @@ import ManageStudents from '../../components/ManageStudents';
 import MarksEntryGrid from '../../components/MarksEntryGrid';
 import BulkUploadMarks from '../../components/BulkUploadMarks';
 import GenerateQRSelector from '../../components/GenerateQRSelector';
+import AnalyticsDashboard from '../../components/AnalyticsDashboard';
 
 import telanganaLogo from '../../assets/Telangana-LOGO.png';
 import cpLogo from '../../assets/CPLogo.png';
@@ -23,24 +24,19 @@ import cpLogo from '../../assets/CPLogo.png';
 // ==========================================
 
 const Dashboard = ({ user, onLogout }) => {
-  const [activeTab, setActiveTab] = useState('overview');
-  const [stats, setStats] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   useEffect(() => {
     const fetchStats = async () => {
       const token = localStorage.getItem('authToken');
       const apiUrl = import.meta.env.VITE_API_URL;
       try {
-        const res = await fetch(`${apiUrl}/api/admin/stats`, {
+        await fetch(`${apiUrl}/api/admin/stats`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (res.ok) {
-          const data = await res.json();
-          setStats(data);
-        }
-      } catch (e) {
+        // Stats logic removed as we are using AnalyticsDashboard
+      } catch {
         // Mock stats for preview if backend is offline
-        setStats({ school_count: 124, student_count: 45020 });
       }
     };
     fetchStats();
@@ -60,21 +56,7 @@ const Dashboard = ({ user, onLogout }) => {
       case 'add_marks': return <MarksEntryGrid user={user} />;
       case 'bulk_upload_marks': return <BulkUploadMarks user={user} />
       case 'generate_qr': return <GenerateQRSelector user={user} />;
-      default: return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <div className="flex items-center gap-3 mb-2 text-gray-500"><School className="h-5 w-5" /><span className="text-sm font-medium">Total Schools</span></div>
-            <p className="text-3xl font-bold text-gray-900">{stats?.school_count || '...'}</p>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <div className="flex items-center gap-3 mb-2 text-gray-500"><User className="h-5 w-5" /><span className="text-sm font-medium">Total Students</span></div>
-            <p className="text-3xl font-bold text-gray-900">{stats?.student_count || '...'}</p>
-          </div>
-          <div className="bg-blue-50 p-6 rounded-lg shadow-sm border border-blue-100 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-blue-100 transition" onClick={() => setActiveTab('bulk_upload_marks')}>
-            <FileText className="h-8 w-8 text-blue-600 mb-2" /><span className="font-bold text-blue-800">Fast Upload</span><span className="text-xs text-blue-600 mt-1">Upload Marks CSV</span>
-          </div>
-        </div>
-      );
+      default: return <AnalyticsDashboard user={user} />;
     }
   };
 
@@ -92,7 +74,7 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-          <button onClick={() => setActiveTab('overview')} className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-md ${activeTab === 'overview' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}><Layers className="mr-3 h-5 w-5" /> Overview</button>
+          <button onClick={() => setActiveTab('dashboard')} className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-md ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}><Layers className="mr-3 h-5 w-5" />Dashboard</button>
 
           {hasAccess(['admin', 'deo', 'meo']) && (
             <button onClick={() => setActiveTab('users')} className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-md ${activeTab === 'users' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}><Users className="mr-3 h-5 w-5" /> Manage Users</button>

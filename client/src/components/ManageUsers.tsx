@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Users, Edit, Trash2, Plus, X
 } from 'lucide-react';
@@ -86,18 +86,18 @@ const ManageUsers = ({ currentUser }) => {
 
   // --- FETCH USERS ---
   const [users, setUsers] = useState([]);
-  const fetchUsers = () => {
+  const fetchUsers = useCallback(() => {
     fetch(`${import.meta.env.VITE_API_URL}/api/admin/users`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => setUsers(Array.isArray(data) ? data : []))
       .catch(console.error);
-  };
+  }, [token]);
 
   useEffect(() => {
     fetchUsers();
-  }, [currentUser]);
+  }, [fetchUsers]);
 
   // --- EDIT/DELETE STATE ---
   const [isEditMode, setIsEditMode] = useState(false);

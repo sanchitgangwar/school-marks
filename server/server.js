@@ -116,7 +116,14 @@ app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    const result = await pool.query(`
+      SELECT u.*, d.name as district_name, m.name as mandal_name, s.name as school_name
+      FROM users u
+      LEFT JOIN districts d ON u.district_id = d.id
+      LEFT JOIN mandals m ON u.mandal_id = m.id
+      LEFT JOIN schools s ON u.school_id = s.id
+      WHERE u.username = $1
+    `, [username]);
 
     if (result.rows.length === 0) return res.status(400).json({ error: "User not found" });
 
@@ -132,7 +139,10 @@ app.post('/api/auth/login', async (req, res) => {
       district_id: user.district_id,
       mandal_id: user.mandal_id,
       school_id: user.school_id,
-      name: user.full_name
+      name: user.full_name,
+      district_name: user.district_name,
+      mandal_name: user.mandal_name,
+      school_name: user.school_name
     };
 
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
@@ -230,6 +240,17 @@ app.put('/api/admin/users/:id', authenticateToken, verifyJurisdiction, async (re
   }
 
   try {
+    // Check if username is being changed and if it's already taken by another user
+    const usernameCheck = await pool.query('SELECT id FROM users WHERE username = $1 AND id != $2', [username, id]);
+    if (usernameCheck.rows.length > 0) {
+      return res.status(400).json({ error: "Username is already taken by another user." });
+    }
+
+    // Convert empty strings to null for UUID fields
+    const district_id_val = district_id && district_id !== '' ? district_id : null;
+    const mandal_id_val = mandal_id && mandal_id !== '' ? mandal_id : null;
+    const school_id_val = school_id && school_id !== '' ? school_id : null;
+
     let query, params;
     if (password && password.trim() !== '') {
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -238,14 +259,14 @@ app.put('/api/admin/users/:id', authenticateToken, verifyJurisdiction, async (re
         SET username=$1, password_hash=$2, role=$3, full_name=$4, district_id=$5, mandal_id=$6, school_id=$7
         WHERE id=$8 RETURNING id, username, role, full_name
       `;
-      params = [username, hashedPassword, role, full_name, district_id, mandal_id, school_id, id];
+      params = [username, hashedPassword, role, full_name, district_id_val, mandal_id_val, school_id_val, id];
     } else {
       query = `
         UPDATE users 
         SET username=$1, role=$2, full_name=$3, district_id=$4, mandal_id=$5, school_id=$6
         WHERE id=$7 RETURNING id, username, role, full_name
       `;
-      params = [username, role, full_name, district_id, mandal_id, school_id, id];
+      params = [username, role, full_name, district_id_val, mandal_id_val, school_id_val, id];
     }
 
     const result = await pool.query(query, params);
@@ -253,7 +274,7 @@ app.put('/api/admin/users/:id', authenticateToken, verifyJurisdiction, async (re
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Update failed. Username might be duplicate." });
+    res.status(500).json({ error: "Update failed. Please try again." });
   }
 });
 
@@ -767,6 +788,566 @@ app.get('/api/schools/:schoolId/qr-data', authenticateToken, async (req, res) =>
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error fetching QR data" });
+  }
+});
+
+// --- ANALYTICS ROUTES ---
+
+// 0. DASHBOARD STATS (Schools, Students, Exams)
+app.get('/api/analytics/stats', authenticateToken, async (req, res) => {
+  const { exam_id, district_id, mandal_id, school_id } = req.query;
+  const { role, district_id: user_d, mandal_id: user_m, school_id: user_s } = req.user;
+
+  // Scope Resolution
+  const d_id = (role !== 'admin' && user_d) ? user_d : district_id;
+  const m_id = (role !== 'admin' && user_m) ? user_m : mandal_id;
+  const s_id = (role !== 'admin' && user_s) ? user_s : school_id;
+
+  try {
+    const params = [];
+    let whereClause = 'WHERE 1=1';
+
+    if (d_id) { whereClause += ` AND sch.district_id = $${params.length + 1}`; params.push(d_id); }
+    if (m_id) { whereClause += ` AND sch.mandal_id = $${params.length + 1}`; params.push(m_id); }
+    if (s_id) { whereClause += ` AND s.school_id = $${params.length + 1}`; params.push(s_id); }
+
+    // We need to join tables to apply filters correctly
+    // Count Schools
+    const schoolsQuery = `
+        SELECT COUNT(DISTINCT sch.id) as count
+        FROM schools sch
+        JOIN students s ON s.school_id = sch.id -- Ensure school has students? Optional.
+        ${whereClause}
+    `;
+
+    // Count Students
+    const studentsQuery = `
+        SELECT COUNT(DISTINCT s.id) as count
+        FROM students s
+        JOIN schools sch ON s.school_id = sch.id
+        ${whereClause}
+    `;
+
+    // Count Exams (Tests Conducted) - based on marks table to ensure they actually happened
+    const examsQuery = `
+        SELECT COUNT(DISTINCT m.exam_id) as count
+        FROM marks m
+        JOIN students s ON m.student_id = s.id
+        JOIN schools sch ON s.school_id = sch.id
+        ${whereClause}
+        ${exam_id ? `AND m.exam_id = $${params.length + 1}` : ''} 
+    `;
+    // Note: if exam_id is passed, it will count 1 (if exists). If not, it counts all distinct exams in scope.
+
+    // Run queries in parallel
+    // For examsQuery, we might need to push exam_id to params if it exists
+    const examParams = [...params];
+    if (exam_id) examParams.push(exam_id);
+
+    const [schoolsRes, studentsRes, examsRes] = await Promise.all([
+      pool.query(studentsQuery.replace('SELECT COUNT(DISTINCT s.id)', 'SELECT COUNT(DISTINCT sch.id)').replace('FROM students s', 'FROM schools sch').replace('JOIN schools sch ON s.school_id = sch.id', ''), params), // Simplified schools query
+      pool.query(studentsQuery, params),
+      pool.query(examsQuery, examParams)
+    ]);
+
+    // Wait, the simplified schools query above is risky if I just string replace. 
+    // Let's write explicit queries.
+
+    const q1 = `SELECT COUNT(DISTINCT id) as count FROM schools sch WHERE 1=1 ${d_id ? `AND district_id = $1` : ''} ${m_id ? `AND mandal_id = $${d_id ? 2 : 1}` : ''} ${s_id ? `AND id = $${(d_id ? 1 : 0) + (m_id ? 1 : 0) + 1}` : ''}`;
+    // Actually, let's reuse the logic properly.
+
+    // Re-doing query construction for clarity and correctness
+
+    // 1. Schools Count
+    let s_where = 'WHERE 1=1';
+    let s_params = [];
+    if (d_id) { s_where += ` AND district_id = $${s_params.length + 1}`; s_params.push(d_id); }
+    if (m_id) { s_where += ` AND mandal_id = $${s_params.length + 1}`; s_params.push(m_id); }
+    if (s_id) { s_where += ` AND id = $${s_params.length + 1}`; s_params.push(s_id); }
+    const resSchools = await pool.query(`SELECT COUNT(*) as count FROM schools ${s_where}`, s_params);
+
+    // 2. Students Count
+    let st_where = 'WHERE 1=1';
+    let st_params = [];
+    if (d_id) { st_where += ` AND sch.district_id = $${st_params.length + 1}`; st_params.push(d_id); }
+    if (m_id) { st_where += ` AND sch.mandal_id = $${st_params.length + 1}`; st_params.push(m_id); }
+    if (s_id) { st_where += ` AND s.school_id = $${st_params.length + 1}`; st_params.push(s_id); }
+    const resStudents = await pool.query(`
+        SELECT COUNT(DISTINCT s.id) as count 
+        FROM students s 
+        JOIN schools sch ON s.school_id = sch.id 
+        ${st_where}`, st_params);
+
+    // 3. Exams Count
+    let e_where = 'WHERE 1=1';
+    let e_params = [];
+    if (d_id) { e_where += ` AND sch.district_id = $${e_params.length + 1}`; e_params.push(d_id); }
+    if (m_id) { e_where += ` AND sch.mandal_id = $${e_params.length + 1}`; e_params.push(m_id); }
+    if (s_id) { e_where += ` AND s.school_id = $${e_params.length + 1}`; e_params.push(s_id); }
+    if (exam_id) { e_where += ` AND m.exam_id = $${e_params.length + 1}`; e_params.push(exam_id); }
+
+    const resExams = await pool.query(`
+        SELECT COUNT(DISTINCT m.exam_id) as count 
+        FROM marks m 
+        JOIN students s ON m.student_id = s.id 
+        JOIN schools sch ON s.school_id = sch.id 
+        ${e_where}`, e_params);
+
+    // 4. Grade A Students Count (Avg >= 80%)
+    let ga_where = 'WHERE 1=1';
+    let ga_params = [];
+    if (d_id) { ga_where += ` AND sch.district_id = $${ga_params.length + 1}`; ga_params.push(d_id); }
+    if (m_id) { ga_where += ` AND sch.mandal_id = $${ga_params.length + 1}`; ga_params.push(m_id); }
+    if (s_id) { ga_where += ` AND s.school_id = $${ga_params.length + 1}`; ga_params.push(s_id); }
+    if (exam_id) { ga_where += ` AND m.exam_id = $${ga_params.length + 1}`; ga_params.push(exam_id); }
+
+    const resGrades = await pool.query(`
+        SELECT 
+            COUNT(CASE WHEN avg_pct >= 80 THEN 1 END) as grade_a,
+            COUNT(CASE WHEN avg_pct >= 60 AND avg_pct < 80 THEN 1 END) as grade_b,
+            COUNT(CASE WHEN avg_pct >= 35 AND avg_pct < 60 THEN 1 END) as grade_c,
+            COUNT(CASE WHEN avg_pct < 35 THEN 1 END) as grade_d
+        FROM (
+            SELECT m.student_id, AVG((m.marks_obtained::decimal / m.max_marks) * 100) as avg_pct
+            FROM marks m
+            JOIN students s ON m.student_id = s.id
+            JOIN schools sch ON s.school_id = sch.id
+            ${ga_where}
+            GROUP BY m.student_id
+        ) as student_avgs
+    `, ga_params);
+
+    res.json({
+      total_schools: parseInt(resSchools.rows[0].count),
+      total_students: parseInt(resStudents.rows[0].count),
+      total_exams: parseInt(resExams.rows[0].count),
+      grade_a_students: parseInt(resGrades.rows[0].grade_a),
+      grade_b_students: parseInt(resGrades.rows[0].grade_b),
+      grade_c_students: parseInt(resGrades.rows[0].grade_c),
+      grade_d_students: parseInt(resGrades.rows[0].grade_d)
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch stats" });
+  }
+});
+app.get('/api/analytics/performance-distribution', authenticateToken, async (req, res) => {
+  const { exam_id, district_id, mandal_id, school_id } = req.query;
+  const { role, district_id: user_d, mandal_id: user_m, school_id: user_s } = req.user;
+
+  // Scope Resolution
+  const d_id = (role !== 'admin' && user_d) ? user_d : district_id;
+  const m_id = (role !== 'admin' && user_m) ? user_m : mandal_id;
+  const s_id = (role !== 'admin' && user_s) ? user_s : school_id;
+
+  try {
+    const query = `
+      SELECT 
+        sub.name as subject,
+        COUNT(CASE WHEN (m.marks_obtained::decimal / m.max_marks) * 100 >= 80 THEN 1 END) as grade_a,
+        COUNT(CASE WHEN (m.marks_obtained::decimal / m.max_marks) * 100 >= 60 AND (m.marks_obtained::decimal / m.max_marks) * 100 < 80 THEN 1 END) as grade_b,
+        COUNT(CASE WHEN (m.marks_obtained::decimal / m.max_marks) * 100 >= 35 AND (m.marks_obtained::decimal / m.max_marks) * 100 < 60 THEN 1 END) as grade_c,
+        COUNT(CASE WHEN (m.marks_obtained::decimal / m.max_marks) * 100 < 35 THEN 1 END) as grade_d,
+        COUNT(*) as total
+      FROM marks m
+      JOIN students s ON m.student_id = s.id
+      JOIN schools sch ON s.school_id = sch.id
+      JOIN subjects sub ON m.subject_id = sub.id
+      WHERE 1=1
+        ${exam_id ? `AND m.exam_id = $1` : ''}
+        ${d_id ? `AND sch.district_id = $${exam_id ? 2 : 1}` : ''}
+        ${m_id ? `AND sch.mandal_id = $${(exam_id ? 2 : 1) + (d_id ? 1 : 0)}` : ''}
+        ${s_id ? `AND s.school_id = $${(exam_id ? 2 : 1) + (d_id ? 1 : 0) + (m_id ? 1 : 0)}` : ''}
+      GROUP BY sub.name
+      ORDER BY sub.name
+    `;
+
+    const params = [];
+    if (exam_id) params.push(exam_id);
+    if (d_id) params.push(d_id);
+    if (m_id) params.push(m_id);
+    if (s_id) params.push(s_id);
+
+    const result = await pool.query(query, params);
+
+    // Calculate percentages
+    const formatted = result.rows.map(row => {
+      const total = Number(row.total);
+      return {
+        subject: row.subject,
+        grade_a: Number(row.grade_a),
+        grade_b: Number(row.grade_b),
+        grade_c: Number(row.grade_c),
+        grade_d: Number(row.grade_d),
+        total: total,
+        grade_a_pct: total ? Number(((Number(row.grade_a) / total) * 100).toFixed(2)) : 0,
+        grade_b_pct: total ? Number(((Number(row.grade_b) / total) * 100).toFixed(2)) : 0,
+        grade_c_pct: total ? Number(((Number(row.grade_c) / total) * 100).toFixed(2)) : 0,
+        grade_d_pct: total ? Number(((Number(row.grade_d) / total) * 100).toFixed(2)) : 0,
+      };
+    });
+
+    res.json(formatted);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch performance distribution" });
+  }
+});
+
+
+// 4. SUBJECT-WISE BREAKDOWN (New)
+app.get('/api/analytics/subject-breakdown', authenticateToken, async (req, res) => {
+  const { level, exam_id, district_id, mandal_id, school_id } = req.query;
+  const { role, district_id: user_d, mandal_id: user_m, school_id: user_s } = req.user;
+
+  // Scope Resolution
+  const d_id = (role !== 'admin' && user_d) ? user_d : district_id;
+  const m_id = (role !== 'admin' && user_m) ? user_m : mandal_id;
+  const s_id = (role !== 'admin' && user_s) ? user_s : school_id;
+
+  try {
+    const params = [];
+    let whereClause = 'WHERE 1=1';
+
+    if (exam_id) { whereClause += ` AND m.exam_id = $${params.length + 1}`; params.push(exam_id); }
+    if (d_id) { whereClause += ` AND sch.district_id = $${params.length + 1}`; params.push(d_id); }
+    if (m_id) { whereClause += ` AND sch.mandal_id = $${params.length + 1}`; params.push(m_id); }
+    if (s_id) { whereClause += ` AND s.school_id = $${params.length + 1}`; params.push(s_id); }
+
+    let groupByCol = '';
+    let groupByLabel = '';
+
+    // Determine grouping based on level
+    // If viewing Root -> Group by District
+    // If viewing District -> Group by Mandal
+    // If viewing Mandal -> Group by School
+    if (level === 'root' || !level) {
+      groupByCol = 'd.name';
+      groupByLabel = 'd.name';
+    } else if (level === 'district') {
+      groupByCol = 'mdl.name';
+      groupByLabel = 'mdl.name';
+    } else if (level === 'mandal') {
+      groupByCol = 'sch.name';
+      groupByLabel = 'sch.name';
+    } else {
+      // School level or invalid - return empty
+      return res.json({});
+    }
+
+    const query = `
+            SELECT 
+                sub.name as subject,
+                ${groupByCol} as entity_name,
+                COUNT(CASE WHEN m.grade = 'A' THEN 1 END) as grade_a,
+                COUNT(CASE WHEN m.grade = 'B' THEN 1 END) as grade_b,
+                COUNT(CASE WHEN m.grade = 'C' THEN 1 END) as grade_c,
+                COUNT(CASE WHEN m.grade = 'D' THEN 1 END) as grade_d,
+                COUNT(*) as total
+            FROM marks m
+            JOIN students s ON m.student_id = s.id
+            JOIN schools sch ON s.school_id = sch.id
+            JOIN mandals mdl ON sch.mandal_id = mdl.id
+            JOIN districts d ON sch.district_id = d.id
+            JOIN subjects sub ON m.subject_id = sub.id
+            ${whereClause}
+            GROUP BY sub.name, ${groupByCol}
+            ORDER BY sub.name, ${groupByCol}
+        `;
+
+    const { rows } = await pool.query(query, params);
+
+    // Transform data into nested structure: { "Subject Name": [ { name: "Entity", ...data }, ... ] }
+    const result = {};
+    rows.forEach(row => {
+      if (!result[row.subject]) {
+        result[row.subject] = [];
+      }
+      const total = parseInt(row.total);
+      result[row.subject].push({
+        name: row.entity_name,
+        grade_a: parseInt(row.grade_a),
+        grade_b: parseInt(row.grade_b),
+        grade_c: parseInt(row.grade_c),
+        grade_d: parseInt(row.grade_d),
+        total: total,
+        grade_a_pct: total > 0 ? parseFloat(((parseInt(row.grade_a) / total) * 100).toFixed(2)) : 0,
+        grade_b_pct: total > 0 ? parseFloat(((parseInt(row.grade_b) / total) * 100).toFixed(2)) : 0,
+        grade_c_pct: total > 0 ? parseFloat(((parseInt(row.grade_c) / total) * 100).toFixed(2)) : 0,
+        grade_d_pct: total > 0 ? parseFloat(((parseInt(row.grade_d) / total) * 100).toFixed(2)) : 0,
+      });
+    });
+
+    res.json(result);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// 5. ENTITY PERFORMANCE (New)
+// Aggregates grade distribution by child entity (District/Mandal/School)
+app.get('/api/analytics/entity-performance', authenticateToken, async (req, res) => {
+  const { level, district_id, mandal_id, school_id } = req.query;
+  const { role, district_id: user_d, mandal_id: user_m, school_id: user_s } = req.user;
+
+  try {
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramIdx = 1;
+
+    // Role-based scoping
+    if (role === 'deo' || (role !== 'admin' && user_d)) {
+      whereClause += ` AND d.id = $${paramIdx++}`;
+      params.push(user_d || district_id);
+    } else if (district_id) {
+      whereClause += ` AND d.id = $${paramIdx++}`;
+      params.push(district_id);
+    }
+
+    if (role === 'meo' || (role !== 'admin' && user_m)) {
+      whereClause += ` AND mdl.id = $${paramIdx++}`;
+      params.push(user_m || mandal_id);
+    } else if (mandal_id) {
+      whereClause += ` AND mdl.id = $${paramIdx++}`;
+      params.push(mandal_id);
+    }
+
+    if (role === 'school_admin' || (role !== 'admin' && user_s)) {
+      whereClause += ` AND sch.id = $${paramIdx++}`;
+      params.push(user_s || school_id);
+    } else if (school_id) {
+      whereClause += ` AND sch.id = $${paramIdx++}`;
+      params.push(school_id);
+    }
+
+    let groupByCol = '';
+    if (level === 'root') {
+      groupByCol = 'd.name';
+    } else if (level === 'district') {
+      groupByCol = 'mdl.name';
+    } else if (level === 'mandal') {
+      groupByCol = 'sch.name';
+    } else if (level === 'school') {
+      groupByCol = 's.name';
+    } else {
+      return res.json([]);
+    }
+
+    const query = `
+            SELECT 
+                ${groupByCol} as name,
+                COUNT(CASE WHEN m.grade = 'A' THEN 1 END) as grade_a,
+                COUNT(CASE WHEN m.grade = 'B' THEN 1 END) as grade_b,
+                COUNT(CASE WHEN m.grade = 'C' THEN 1 END) as grade_c,
+                COUNT(CASE WHEN m.grade = 'D' THEN 1 END) as grade_d,
+                COUNT(*) as total
+            FROM marks m
+            JOIN students s ON m.student_id = s.id
+            JOIN schools sch ON s.school_id = sch.id
+            JOIN mandals mdl ON sch.mandal_id = mdl.id
+            JOIN districts d ON sch.district_id = d.id
+            ${whereClause}
+            GROUP BY ${groupByCol}
+            ORDER BY ${groupByCol}
+        `;
+
+    const { rows } = await pool.query(query, params);
+
+    const result = rows.map(row => {
+      const total = parseInt(row.total);
+      return {
+        name: row.name,
+        grade_a: parseInt(row.grade_a),
+        grade_b: parseInt(row.grade_b),
+        grade_c: parseInt(row.grade_c),
+        grade_d: parseInt(row.grade_d),
+        total: total,
+        grade_a_pct: total > 0 ? parseFloat(((parseInt(row.grade_a) / total) * 100).toFixed(2)) : 0,
+        grade_b_pct: total > 0 ? parseFloat(((parseInt(row.grade_b) / total) * 100).toFixed(2)) : 0,
+        grade_c_pct: total > 0 ? parseFloat(((parseInt(row.grade_c) / total) * 100).toFixed(2)) : 0,
+        grade_d_pct: total > 0 ? parseFloat(((parseInt(row.grade_d) / total) * 100).toFixed(2)) : 0,
+      };
+    });
+
+    res.json(result);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// 6. STUDENT MARKS (New)
+app.get('/api/analytics/student-marks', authenticateToken, async (req, res) => {
+  const { school_id } = req.query;
+  const { role, school_id: user_s } = req.user;
+
+  const s_id = (role !== 'admin' && user_s) ? user_s : school_id;
+
+  if (!s_id) return res.status(400).json({ error: "School ID is required" });
+
+  try {
+    const query = `
+      SELECT 
+        s.name as student_name,
+        sub.name as subject,
+        m.marks_obtained,
+        m.max_marks,
+        m.grade
+      FROM marks m
+      JOIN students s ON m.student_id = s.id
+      JOIN subjects sub ON m.subject_id = sub.id
+      WHERE s.school_id = $1
+      ORDER BY s.name, sub.name
+    `;
+
+    const { rows } = await pool.query(query, [s_id]);
+    res.json(rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// 7. EXAMS LIST (New)
+app.get('/api/exams', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, end_date FROM exams ORDER BY end_date DESC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// 5. DRILL DOWN LIST (Existing) (Hierarchical Data)
+app.get('/api/analytics/drill-down', authenticateToken, async (req, res) => {
+  const { level, parent_id, exam_id } = req.query;
+  // level: 'district' | 'mandal' | 'school'
+  // parent_id: id of the parent entity (e.g., district_id when level is 'mandal')
+
+  const { role, district_id: user_d, mandal_id: user_m, school_id: user_s } = req.user;
+
+  try {
+    // CTE to aggregate Student Stats first (Pass = All subjects >= 35%)
+    // We handle exam_id filtering inside the CTE
+    let paramIndex = 1;
+    const queryParams = [];
+    if (exam_id) queryParams.push(exam_id);
+
+    const studentAggCTE = `
+        WITH StudentAgg AS (
+            SELECT 
+                s.id as student_id,
+                m.exam_id,
+                s.school_id,
+                sch.mandal_id,
+                sch.district_id,
+                BOOL_AND((m.marks_obtained::decimal / m.max_marks) * 100 >= 35) as is_passed,
+                AVG((m.marks_obtained::decimal / m.max_marks) * 100) as avg_score,
+                COUNT(CASE WHEN (m.marks_obtained::decimal / m.max_marks) * 100 >= 80 THEN 1 END) as a_grade_subjects
+            FROM students s
+            JOIN marks m ON s.id = m.student_id
+            JOIN schools sch ON s.school_id = sch.id
+            WHERE 1=1 ${exam_id ? `AND m.exam_id = $1` : ''}
+            GROUP BY s.id, m.exam_id, s.school_id, sch.mandal_id, sch.district_id
+        )
+    `;
+
+    // Construct Main Query
+    let mainQuery = '';
+    let groupBy = '';
+    let selectName = '';
+    let joinCondition = '';
+    let whereClause = 'WHERE 1=1';
+
+    // Adjust param index for subsequent params (if exam_id was used)
+    let currentParamIdx = queryParams.length + 1;
+
+    if (level === 'root') {
+      selectName = 'd.name';
+      groupBy = 'd.id, d.name';
+      joinCondition = 'sa.district_id = d.id';
+
+      mainQuery = `
+            SELECT 
+                d.id,
+                d.name,
+                COALESCE(ROUND(AVG(sa.avg_score), 2), 0) as avg_score,
+                COALESCE(ROUND((COUNT(CASE WHEN sa.is_passed THEN 1 END)::decimal / NULLIF(COUNT(sa.student_id), 0)) * 100, 2), 0) as pass_percentage,
+                COALESCE(SUM(sa.a_grade_subjects), 0) as grade_a_count
+            FROM districts d
+            LEFT JOIN StudentAgg sa ON d.id = sa.district_id
+        `;
+
+      if (role !== 'admin' && user_d) {
+        whereClause += ` AND d.id = $${currentParamIdx}`;
+        queryParams.push(user_d);
+        currentParamIdx++;
+      }
+
+    } else if (level === 'district') {
+      selectName = 'mdl.name';
+      groupBy = 'mdl.id, mdl.name';
+
+      mainQuery = `
+            SELECT 
+                mdl.id,
+                mdl.name,
+                COALESCE(ROUND(AVG(sa.avg_score), 2), 0) as avg_score,
+                COALESCE(ROUND((COUNT(CASE WHEN sa.is_passed THEN 1 END)::decimal / NULLIF(COUNT(sa.student_id), 0)) * 100, 2), 0) as pass_percentage,
+                COALESCE(SUM(sa.a_grade_subjects), 0) as grade_a_count
+            FROM mandals mdl
+            LEFT JOIN StudentAgg sa ON mdl.id = sa.mandal_id
+        `;
+
+      // Filter by parent District
+      whereClause += ` AND mdl.district_id = $${currentParamIdx}`;
+      queryParams.push(parent_id);
+      currentParamIdx++;
+
+    } else if (level === 'mandal') {
+      selectName = 'sch.name';
+      groupBy = 'sch.id, sch.name';
+
+      mainQuery = `
+            SELECT 
+                sch.id,
+                sch.name,
+                COALESCE(ROUND(AVG(sa.avg_score), 2), 0) as avg_score,
+                COALESCE(ROUND((COUNT(CASE WHEN sa.is_passed THEN 1 END)::decimal / NULLIF(COUNT(sa.student_id), 0)) * 100, 2), 0) as pass_percentage,
+                COALESCE(SUM(sa.a_grade_subjects), 0) as grade_a_count
+            FROM schools sch
+            LEFT JOIN StudentAgg sa ON sch.id = sa.school_id
+        `;
+
+      // Filter by parent Mandal
+      whereClause += ` AND sch.mandal_id = $${currentParamIdx}`;
+      queryParams.push(parent_id);
+      currentParamIdx++;
+    } else if (level === 'school') {
+      return res.json([]);
+    }
+
+    const finalQuery = `
+        ${studentAggCTE}
+        ${mainQuery}
+        ${whereClause}
+        GROUP BY ${groupBy}
+        ORDER BY pass_percentage ASC
+    `;
+
+    const result = await pool.query(finalQuery, queryParams);
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch drill-down data" });
   }
 });
 

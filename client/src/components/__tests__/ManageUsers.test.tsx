@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ManageUsers from '../ManageUsers';
@@ -32,7 +32,7 @@ describe('ManageUsers Component', () => {
         Storage.prototype.getItem = vi.fn(() => 'mock-token');
 
         // Mock global fetch
-        // @ts-ignore
+        // @ts-expect-error - Mocking global fetch
         global.fetch = vi.fn((url, options) => {
             if (url.includes('/entities/districts')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockDistricts) });
             if (url.includes('/entities/mandals')) return Promise.resolve({ ok: true, json: () => Promise.resolve(mockMandals) });
